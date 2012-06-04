@@ -133,7 +133,7 @@ namespace MFToolkit.Net.Web
 
         public static string HtmlEncode(string s)
         {
-            StringBuilder sb = new StringBuilder();
+            astra.http.StringBuilder sb = new astra.http.StringBuilder();
 
             foreach (char c in s)
             {

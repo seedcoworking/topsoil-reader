@@ -89,7 +89,7 @@ namespace astra.http
         {
             if (!m_initialized)
             {
-                m_uart = new SPI(new SPI.Configuration(m_chipSelect, false, 10, 10, false, true, 2000, m_spiModule));
+                m_uart = new SPI(new SPI.Configuration(m_chipSelect, false, 10, 10, false, true, 8000, m_spiModule));
                 WriteRegister(WiflyRegister.LCR, 0x80); // 0x80 to program baudrate
 
                 if (m_deviceType == DeviceType.crystal_12_288_MHz)
@@ -97,7 +97,7 @@ namespace astra.http
                     WriteRegister(WiflyRegister.DLL, 21);       // 4800=167, 9600=83, 19200=42, 38400=21
                 else
                     // value = (14.7456*10^6) / (baudrate*16)
-                    WriteRegister(WiflyRegister.DLL,4 );     // 4800=192, 9600=96, 19200=48, 38400=24
+                    WriteRegister(WiflyRegister.DLL, 1 );     // 4800=192, 9600=96, 19200=48, 38400=24
                 WriteRegister(WiflyRegister.DLM, 0);
                 WriteRegister(WiflyRegister.LCR, 0xbf); // access EFR register
                 WriteRegister(WiflyRegister.EFR, 0xd0); // enable enhanced registers and enable RTS/CTS on the SPI UART
@@ -119,24 +119,25 @@ namespace astra.http
                 Init();
                 Thread.Sleep(200);
                 enterCommandMode();
-                Thread.Sleep(200);
+                //Thread.Sleep(200);
                 SendCommand("reboot", "Listen on", "ERR:", 0, 500);
                 enterCommandMode();
-                Thread.Sleep(200);
+                //Thread.Sleep(200);
                 Send("\r");
                 //SendCommand("ftp u wifly-221G.img");
                 //SendCommand("get e");
-                Thread.Sleep(200);
-                SendCommand("get everything");
+                //Thread.Sleep(400);
+                //SendCommand("get everything");
                 //SendCommand("set wlan join  4");
                 //SendCommand("set wlan ssid my_adhoc_network ");
-                //SendCommand("set wlan chan 1 m_opened = true;");
+                //SendCommand("set wlan chan 1");
                 //SendCommand("set ip address 169.254.1.1");
                 //SendCommand("set ip netmask 255.255.0.0 ");
                 //SendCommand("set ip  dhcp 0");
-                //SendCommand("factory RESET");
+                //////////SendCommand("factory RESET");
                 //SendCommand("save", "Storing", "ERR:", 0, 100);
-                //SendCommand("reboot", "Listen on", "ERR:", 0, 500);
+                //SendCommand("reboot");
+                m_opened = true;
             }
         }
 
@@ -152,23 +153,25 @@ namespace astra.http
                 SendCommand("reboot", "Listen on", "ERR:", 0, 500);
                 enterCommandMode();
                 Send("\r");
-                SendCommand("factory RESET");
-                SendCommand("set uart baud 19200");
+                //SendCommand("set uart baud 921600");
                 SendCommand("set wlan ssid " + ssid);
-                if (phrase != null && phrase.Length != 0)
-                    SendCommand("set wlan phrase " + phrase);
+                SendCommand("get wlan");
+                SendCommand("set wlan channel 0");
+                SendCommand("set wlan join 1");
                 SendCommand("set wlan rate 14");
                 SendCommand("set wlan hide 1");
                 SendCommand("set ip localport " + LocalPort);
                 SendCommand("set uart flow 1");
                 SendCommand("set uart mode 0");
                 SendCommand("set comm remote 0");
+                SendCommand("set ip  dhcp 1");
+                if (phrase != null && phrase.Length != 0)
+                    SendCommand("set wlan phrase " + phrase);
                 SendCommand("save", "Storing", "ERR:", 0, 100);
                 SendCommand("reboot", "Listen on", "ERR:", 0, 500);
                 enterCommandMode();
                 m_opened = true;
             }
-            Debug.Print("Listening on " + getIP());
             
         }
 
@@ -270,7 +273,8 @@ namespace astra.http
          */
         public String SendCommand(String command, String key1, String key2, int nLines, int delay)
         {
-            StringBuilder buffer = new StringBuilder();
+            //StringBuilder buffer = new StringBuilder();
+            String buffer = "";
             String result = "";
             Boolean countLines = nLines > 0;
 
@@ -282,16 +286,18 @@ namespace astra.http
                     char c = (char)ReadRegister(WiflyRegister.RHR);
                     if (c == '\r')
                     {
-                        String line = buffer.ToString();
+                        //String line = buffer.ToString();
+                        String line = buffer;
                         Debug.Print("> " + line);
                         if (line.IndexOf(key1) != -1 || line.IndexOf(key2) != -1)
                             result = line;
                         if (countLines && nLines-- <= 0)
                             return result;
-                        buffer.Clear();
+                        //buffer.Clear();
+                        buffer="";
                     }
                     else if (c != '\r' && c != '\n')
-                        buffer.Append(c);
+                        buffer += c.ToString();
                 }
                 Thread.Sleep(4);
             }
@@ -305,7 +311,7 @@ namespace astra.http
             //  250ms window, command mode will not be entered and these bytes will be passed on to other side"
             Thread.Sleep(300);
             Send("$$$");
-            Thread.Sleep(400);
+            Thread.Sleep(600);
         }
 
         protected void leaveCommandMode()
@@ -412,7 +418,7 @@ namespace astra.http
         {
             StringBuilder line = new StringBuilder();
             Open();
-            //Open("Seed Coworking", "Ken!5733");
+            Debug.Print("Listening on " + getIP());
             while (true)
             {
                 while ((ReadRegister(WiflyRegister.LSR) & 0x01) > 0)

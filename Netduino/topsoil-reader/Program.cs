@@ -11,13 +11,13 @@ namespace seedcoworking.topsoilreader
     public class Program
     {
         //private static OutputPort led = new OutputPort((Cpu.Pin)Pins.GPIO_PIN_A0, true);
-        private static DateTime LDRtime = new DateTime(1980, 1, 1);
-        private static Object LDR_Lock = new Object();
+        //private static DateTime LDRtime = new DateTime(1980, 1, 1);
+        //private static Object LDR_Lock = new Object();
         //private static OutputPort Wout0 = new OutputPort((Cpu.Pin)Pins.GPIO_PIN_D0, true);
         //private static OutputPort Wout1 = new OutputPort((Cpu.Pin)Pins.GPIO_PIN_D1, true);
         private static Object WData_Lock = new Object();
         private static int rfidBits = 0;
-        private static int SendBits = 0;
+        //private static int SendBits = 0;
         private static byte[] rfidBytes = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
         private static DateTime startBits = new DateTime();
         private static DateTime stopBits = new DateTime();
@@ -46,7 +46,6 @@ namespace seedcoworking.topsoilreader
         {
             webServer = new HttpWiflyImpl(processRequest, 80, HttpWiflyImpl.DeviceType.crystal_14_MHz, SPI.SPI_module.SPI1, SecretLabs.NETMF.Hardware.Netduino.Pins.GPIO_PIN_D10);
 
-            //Debug.Print("Listening on " + webServer.getIP());
             webServer.Listen();
         }
 

@@ -8,8 +8,9 @@
     <ProductVersion>9.0.21022</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{25543F80-99A4-457C-8220-FF5FB19C9F2D}</ProjectGuid>
-    <TargetFrameworkVersion>v4.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.2</TargetFrameworkVersion>
     <NetMfTargetsBaseDir Condition="'$(NetMfTargetsBaseDir)'==''">$(MSBuildExtensionsPath32)\Microsoft\.NET Micro Framework\</NetMfTargetsBaseDir>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -39,7 +40,9 @@
     <Compile Include="MFToolkit.IO.ByteUtil.cs" />
     <Compile Include="MFToolkit.Net.Web.HttpServerUtility.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="StringBuilder.cs" />
+    <Compile Include="StringBuilder.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="System.Convert_Base64.cs" />
   </ItemGroup>
   <ItemGroup>

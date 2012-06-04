@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("SeedRFID")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("topsoil-reader")]
+[assembly: AssemblyDescription("Netduino RFID reader")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("SeedRFID")]
+[assembly: AssemblyCompany("Seed Coworking")]
+[assembly: AssemblyProduct("topsoil-reader")]
 [assembly: AssemblyCopyright("Copyright ©  2012")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
