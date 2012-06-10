@@ -5,6 +5,9 @@ using Microsoft.SPOT.Hardware;
 using SecretLabs.NETMF.Hardware;
 using SecretLabs.NETMF.Hardware.Netduino;
 using astra.http;
+using netduino.helpers.Helpers;
+using System.Collections;
+using Controller;
 
 namespace seedcoworking.topsoilreader
 {
@@ -22,9 +25,16 @@ namespace seedcoworking.topsoilreader
         private static DateTime startBits = new DateTime();
         private static DateTime stopBits = new DateTime();
         private static HttpImplementation webServer;
-        
+
+        private static ArrayList Cards;
+        private static Hashtable Schedules;
+        private static Queue Triggers;
+
         public static void Main()
         {
+            TimerCallback UpdateUsersDelegate = new TimerCallback(UpdateUsers_Callback);
+            Timer WDataTimer = new Timer(UpdateUsersDelegate, null,0, 60000);
+            
             // initialize the Data0 input
             InterruptPort Data0 = new InterruptPort(Pins.GPIO_PIN_D0, true,
                                                          Port.ResistorMode.PullUp,
@@ -36,7 +46,8 @@ namespace seedcoworking.topsoilreader
                                                          Port.InterruptMode.InterruptEdgeHigh);
             Data1.OnInterrupt += new NativeEventHandler(WData_OnInterrupt);
 
-            new Thread(webServerThread).Start();
+
+            //new Thread(webServerThread).Start();
 
             // wait forever...
             Thread.Sleep(Timeout.Infinite);
@@ -97,5 +108,67 @@ namespace seedcoworking.topsoilreader
             rfidBits = 0;
         }
 
+        private static void UpdateUsers_Callback(Object StateInfo)
+        {
+            var json = "["
+                        + "{\"created_at\":\"2012-06-06T00:00:00Z\",\"email\":\"robert.plant@example.com\","
+                        + "\"id\":2,\"name\":\"Robert Plant\",\"updated_at\":\"2012-06-06T00:00:00Z\"},"
+
+                        + "{\"created_at\":\"2012-06-06T00:00:00Z\",\"email\":\"jimmy.page@example.com\","
+                        + "\"id\":1,\"name\":\"Jimmy Page\",\"updated_at\":\"2012-06-06T00:00:00Z\","
+                        + "\"card\":{\"number\":\"76537489\"},\"plan\":{\"name\":\"Medium\","
+                        + "\"schedule\":[{\"day\":{\"name\":\"Monday\",\"start\":\"08:00:00\",\"end\":\"17:30:00\"}},"
+                        + "{\"day\":{\"name\":\"Tuesday\",\"start\":\"08:00:00\",\"end\":\"17:30:00\"}}]}},"
+
+                        + "{\"created_at\":\"2012-06-09T00:00:00Z\",\"email\":\"john@tm107.com\","
+                        + "\"id\":3,\"name\":\"john zalewski\",\"updated_at\":\"2012-06-06T00:00:00Z\","
+                        + "\"card\":{\"number\":\"FEF4E3\"},\"plan\":{\"name\":\"Full\","
+                        + "\"schedule\":[{\"day\":{\"name\":\"Sunday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}},"
+                        + "{\"day\":{\"name\":\"Monday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}},"
+                        + "{\"day\":{\"name\":\"Tuesday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}},"
+                        + "{\"day\":{\"name\":\"Wednesday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}},"
+                        + "{\"day\":{\"name\":\"Thurday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}},"
+                        + "{\"day\":{\"name\":\"Friday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}},"
+                        + "{\"day\":{\"name\":\"Saturday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}}]}}"
+                        
+                        + "]";
+            var parser = new JSONParser();
+            //var results = parser.Parse(json);
+
+            //short status;
+            ArrayList users=new ArrayList();
+            
+            //parser.Find("root", results, out users);
+            users = (ArrayList)JSON.JsonDecode(json);
+            ArrayList emptyArrayList = new ArrayList();
+            foreach (Hashtable u in users)
+            {
+                Debug.Print(u["name"].ToString());
+                Hashtable card;
+                parser.Find("card", u, out card);
+                if(card!=null)Debug.Print(card["number"].ToString());
+                string n;
+                parser.Find("number", card, out n);
+                Debug.Print(n);
+                Hashtable p;
+                parser.Find("plan", u, out p);
+                if(p!=null)Debug.Print(p["name"].ToString());
+                //Hashtable s;
+                //parser.Find("schedule", p, out s);
+                ArrayList days;
+                if(p==null || !(parser.Find("schedule", p, out days)))days = emptyArrayList;
+                foreach (Hashtable dy in days)
+                {
+                    Hashtable d=(Hashtable)dy["day"];
+                    //parser.Find("day", dy, out d);
+                    //string dn, ds, de;
+                    //parser.Find("name", d, out dn);
+                    //parser.Find("start", d, out ds);
+                    //parser.Find("end", d, out de);
+                    //Debug.Print(dn + " " + ds + " " + de);
+                    Debug.Print(d["name"].ToString() + d["start"].ToString() + d["end"].ToString());
+                }
+            }
+        }
     }
 }
