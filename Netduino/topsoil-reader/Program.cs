@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 using System.Threading;
 using Microsoft.SPOT;
 using Microsoft.SPOT.Hardware;
@@ -13,27 +14,34 @@ namespace seedcoworking.topsoilreader
 {
     public class Program
     {
-        //private static OutputPort led = new OutputPort((Cpu.Pin)Pins.GPIO_PIN_A0, true);
-        //private static DateTime LDRtime = new DateTime(1980, 1, 1);
-        //private static Object LDR_Lock = new Object();
-        //private static OutputPort Wout0 = new OutputPort((Cpu.Pin)Pins.GPIO_PIN_D0, true);
-        //private static OutputPort Wout1 = new OutputPort((Cpu.Pin)Pins.GPIO_PIN_D1, true);
+        private static OutputPort DoorStrike = new OutputPort(Pins.GPIO_PIN_D4, false);
+        private static OutputPort DoorStrikeLOW = new OutputPort(Pins.GPIO_PIN_D3, false);
+        private static Object Cards_Lock = new Object();
         private static Object WData_Lock = new Object();
         private static int rfidBits = 0;
-        //private static int SendBits = 0;
         private static byte[] rfidBytes = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
         private static DateTime startBits = new DateTime();
         private static DateTime stopBits = new DateTime();
         private static HttpImplementation webServer;
 
-        private static ArrayList Cards;
-        private static Hashtable Schedules;
-        private static Queue Triggers;
+        public static Hashtable DaysOfWeek;
+        
+        private static Hashtable Cards;
+        //private static Hashtable Schedules;
+        //private static Queue Triggers;
 
         public static void Main()
         {
+            DaysOfWeek = new Hashtable();
+            DaysOfWeek.Add("Sunday",0);
+            DaysOfWeek.Add("Monday",1);
+            DaysOfWeek.Add("Tuesday",2);
+            DaysOfWeek.Add("Wednesday",3);
+            DaysOfWeek.Add("Thursday",4);
+            DaysOfWeek.Add("Friday",5);
+            DaysOfWeek.Add("Saturday",6);
             TimerCallback UpdateUsersDelegate = new TimerCallback(UpdateUsers_Callback);
-            Timer WDataTimer = new Timer(UpdateUsersDelegate, null,0, 60000);
+            Timer WDataTimer = new Timer(UpdateUsersDelegate, null,0, 900000);
             
             // initialize the Data0 input
             InterruptPort Data0 = new InterruptPort(Pins.GPIO_PIN_D0, true,
@@ -105,6 +113,15 @@ namespace seedcoworking.topsoilreader
             Debug.Print("Recieved: " + rfidBits + " bits");
             Debug.Print("Stop: " + stopBits.Second + ":" + stopBits.Millisecond);
 
+            lock (Cards_Lock)
+            {
+                if (Cards.Contains(rfid))
+                {
+                    Debug.Print("OPEN");
+                    UnlockDoor();
+                }
+                else Debug.Print("Not Valid");
+            }
             rfidBits = 0;
         }
 
@@ -127,7 +144,7 @@ namespace seedcoworking.topsoilreader
                         + "{\"day\":{\"name\":\"Monday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}},"
                         + "{\"day\":{\"name\":\"Tuesday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}},"
                         + "{\"day\":{\"name\":\"Wednesday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}},"
-                        + "{\"day\":{\"name\":\"Thurday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}},"
+                        + "{\"day\":{\"name\":\"Thursday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}},"
                         + "{\"day\":{\"name\":\"Friday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}},"
                         + "{\"day\":{\"name\":\"Saturday\",\"start\":\"00:00:00\",\"end\":\"24:00:00\"}}]}}"
                         
@@ -137,38 +154,57 @@ namespace seedcoworking.topsoilreader
 
             //short status;
             ArrayList users=new ArrayList();
-            
-            //parser.Find("root", results, out users);
             users = (ArrayList)JSON.JsonDecode(json);
-            ArrayList emptyArrayList = new ArrayList();
+            if (users == null || users.Count == 0) return;
+            Hashtable cards = new Hashtable();
             foreach (Hashtable u in users)
             {
                 Debug.Print(u["name"].ToString());
                 Hashtable card;
-                parser.Find("card", u, out card);
-                if(card!=null)Debug.Print(card["number"].ToString());
+                if (!parser.Find("card", u, out card)) continue;
                 string n;
-                parser.Find("number", card, out n);
-                Debug.Print(n);
+                if(!parser.Find("number", card, out n))continue;
+                RFIDCard c = new RFIDCard();
+                c.number = n;
+                Debug.Print(c.number);
                 Hashtable p;
-                parser.Find("plan", u, out p);
-                if(p!=null)Debug.Print(p["name"].ToString());
-                //Hashtable s;
-                //parser.Find("schedule", p, out s);
+                if(!parser.Find("plan", u, out p))continue;
+                Debug.Print(p["name"].ToString());
                 ArrayList days;
-                if(p==null || !(parser.Find("schedule", p, out days)))days = emptyArrayList;
+                if (!parser.Find("schedule", p, out days) || days.Count==0) continue;
+                c.schedule = new Schedule();
                 foreach (Hashtable dy in days)
                 {
-                    Hashtable d=(Hashtable)dy["day"];
-                    //parser.Find("day", dy, out d);
-                    //string dn, ds, de;
-                    //parser.Find("name", d, out dn);
-                    //parser.Find("start", d, out ds);
-                    //parser.Find("end", d, out de);
-                    //Debug.Print(dn + " " + ds + " " + de);
-                    Debug.Print(d["name"].ToString() + d["start"].ToString() + d["end"].ToString());
+                    Hashtable d;
+                    if(!parser.Find("day",dy, out d))continue;
+                    Day day = new Day();
+                    string s;
+                    if (!parser.Find("name", d, out s)) continue;
+                    day.name = s;
+                    if (!DaysOfWeek.Contains(s)) continue;
+                    if (!parser.Find("start", d, out s)) continue;
+                    day.start = day.ParseDateTime(s,(int)DaysOfWeek[day.name]);
+                    var dow = day.start.DayOfWeek;
+                    if (!parser.Find("end", d, out s)) continue;
+                    day.end = day.ParseDateTime(s, (int)DaysOfWeek[day.name]);
+                    Debug.Print(day.name + " " + day.start.ToString() + " " + day.end.ToString());
+                }
+                cards.Add(c.number, c);
+            }
+            if (cards != null && cards.Count > 0)
+            {
+                lock (Cards_Lock)
+                {
+                    Cards = cards;
                 }
             }
+        }
+
+        private static void UnlockDoor()
+        {
+            DoorStrike.Write(true);
+            Thread.Sleep(5000);
+            DoorStrike.Write(false);
         }
     }
 }
