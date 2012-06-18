@@ -13,7 +13,7 @@ namespace seedcoworking.topsoilreader
 
     public class Schedule
     {
-        string name { get; set; }
+        public string name { get; set; }
         public Hashtable days { get; set; }
     }
 

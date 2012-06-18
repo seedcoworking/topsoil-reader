@@ -117,8 +117,19 @@ namespace seedcoworking.topsoilreader
             {
                 if (Cards.Contains(rfid))
                 {
-                    Debug.Print("OPEN");
-                    UnlockDoor();
+                    var n = DateTime.Now;
+                    var c = (RFIDCard)Cards[rfid];
+                    if (c.schedule.days.Contains(n.DayOfWeek))
+                    {
+                        var d = (Day)c.schedule.days[n.DayOfWeek];
+                        if (n.TimeOfDay > d.start.TimeOfDay && n.TimeOfDay < d.end.TimeOfDay)
+                        {
+                            Debug.Print("OPEN");
+                            UnlockDoor();
+                        }
+                        else Debug.Print("Not Scheduled");
+                    }
+                    else Debug.Print("Not Scheduled");
                 }
                 else Debug.Print("Not Valid");
             }
@@ -173,6 +184,8 @@ namespace seedcoworking.topsoilreader
                 ArrayList days;
                 if (!parser.Find("schedule", p, out days) || days.Count==0) continue;
                 c.schedule = new Schedule();
+                c.schedule.name = p["name"].ToString();
+                c.schedule.days = new Hashtable();
                 foreach (Hashtable dy in days)
                 {
                     Hashtable d;
@@ -188,6 +201,7 @@ namespace seedcoworking.topsoilreader
                     if (!parser.Find("end", d, out s)) continue;
                     day.end = day.ParseDateTime(s, (int)DaysOfWeek[day.name]);
                     Debug.Print(day.name + " " + day.start.ToString() + " " + day.end.ToString());
+                    c.schedule.days.Add(day.start.DayOfWeek, day);
                 }
                 cards.Add(c.number, c);
             }
@@ -196,6 +210,25 @@ namespace seedcoworking.topsoilreader
                 lock (Cards_Lock)
                 {
                     Cards = cards;
+
+                    //string rfid = "FEF4E3";
+                    //if (Cards.Contains(rfid))
+                    //{
+                    //    var n = DateTime.Now;
+                    //    var c = (RFIDCard)Cards[rfid];
+                    //    if (c.schedule.days.Contains(n.DayOfWeek))
+                    //    {
+                    //        var d = (Day)c.schedule.days[n.DayOfWeek];
+                    //        if (n.TimeOfDay > d.start.TimeOfDay && n.TimeOfDay < d.end.TimeOfDay)
+                    //        {
+                    //            Debug.Print("OPEN");
+                    //            UnlockDoor();
+                    //        }
+                    //        else Debug.Print("Not Scheduled");
+                    //    }
+                    //    else Debug.Print("Not Scheduled");
+                    //}
+                    //else Debug.Print("Not Valid");
                 }
             }
         }
