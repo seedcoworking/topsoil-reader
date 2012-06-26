@@ -16,7 +16,8 @@ namespace Controller
 	/// 	
 	public class JSON
 	{
-		public const int TOKEN_NONE = 0;
+        public static bool AutoCasting = true;
+        public const int TOKEN_NONE = 0;
 		public const int TOKEN_CURLY_OPEN = 1;
 		public const int TOKEN_CURLY_CLOSE = 2;
 		public const int TOKEN_SQUARED_OPEN = 3;
@@ -71,7 +72,7 @@ namespace Controller
 			success = true;
 			if (json != null) {
 				char[] charArray = json.ToCharArray();
-				int index = 0;
+				int index = json.IndexOf('[');
 				object value = ParseValue(charArray, ref index, ref success);
 				return value;
 			} else {
@@ -173,7 +174,8 @@ namespace Controller
 
 		protected static object ParseValue(char[] json, ref int index, ref bool success)
 		{
-			switch (LookAhead(json, index)) {
+            if (index < 0) index = 0;
+            switch (LookAhead(json, index)) {
 				case JSON.TOKEN_STRING:
 					return ParseString(json, ref index, ref success);
 				case JSON.TOKEN_NUMBER:
@@ -516,6 +518,209 @@ namespace Controller
 			builder.Append(number.ToString());
 			return true;
 		}
-	}
+        public static bool Find(string key, Hashtable hashTable, out Hashtable searchResult)
+        {
+            searchResult = null;
+            if (hashTable == null) return false;
+            if (hashTable.Contains(key))
+            {
+                searchResult = (Hashtable)hashTable[key];
+                return true;
+            }
+            return false;
+        }
+
+        public static bool Find(string key, Hashtable hashTable, out ArrayList searchResult)
+        {
+            searchResult = null;
+            if (hashTable == null) return false;
+            if (hashTable.Contains(key))
+            {
+                searchResult = (ArrayList)hashTable[key];
+                return true;
+            }
+            return false;
+        }
+        public static bool Find(string key, Hashtable hashTable, out string searchResult)
+        {
+            searchResult = null;
+            if (hashTable == null) return false;
+            if (hashTable.Contains(key))
+            {
+                searchResult = (string)hashTable[key].ToString();
+                return true;
+            }
+            return false;
+        }
+        public static bool Find(string key, Hashtable hashTable, out bool searchResult)
+        {
+            searchResult = false;
+            if (hashTable == null) return false;
+            if (hashTable.Contains(key))
+            {
+                if (AutoCasting)
+                {
+                    searchResult = (bool)hashTable[key];
+                    return true;
+                }
+                var result = (string)hashTable[key];
+                if (result == "true")
+                {
+                    searchResult = true;
+                    return true;
+                }
+                if (result == "false")
+                {
+                    searchResult = false;
+                    return true;
+                }
+            }
+            return false;
+        }
+        public static bool Find(string key, Hashtable hashTable, out Double searchResult)
+        {
+            searchResult = 0.0;
+            if (hashTable == null) return false;
+            if (hashTable.Contains(key))
+            {
+                if (AutoCasting)
+                {
+                    searchResult = (Double)hashTable[key];
+                }
+                else
+                {
+                    searchResult = Double.Parse((string)hashTable[key]);
+                }
+                return true;
+            }
+            return false;
+        }
+        public static bool Find(string key, Hashtable hashTable, out float searchResult)
+        {
+            searchResult = 0.0f;
+            if (hashTable == null) return false;
+            if (hashTable.Contains(key))
+            {
+                if (AutoCasting)
+                {
+                    searchResult = (float)((Double)hashTable[key]);
+                }
+                else
+                {
+                    searchResult = (float)Double.Parse((string)hashTable[key]);
+                }
+                return true;
+            }
+            return false;
+        }
+        public static bool Find(string key, Hashtable hashTable, out Int16 searchResult)
+        {
+            searchResult = 0;
+            if (hashTable == null) return false;
+            if (hashTable.Contains(key))
+            {
+                if (AutoCasting)
+                {
+                    searchResult = (Int16)((Double)hashTable[key]);
+                }
+                else
+                {
+                    searchResult = Int16.Parse((string)hashTable[key]);
+                }
+                return true;
+            }
+            return false;
+        }
+        public static bool Find(string key, Hashtable hashTable, out Int32 searchResult)
+        {
+            searchResult = 0;
+            if (hashTable == null) return false;
+            if (hashTable.Contains(key))
+            {
+                if (AutoCasting)
+                {
+                    searchResult = (Int32)((Double)hashTable[key]);
+                }
+                else
+                {
+                    searchResult = Int32.Parse((string)hashTable[key]);
+                }
+                return true;
+            }
+            return false;
+        }
+        public static bool Find(string key, Hashtable hashTable, out Int64 searchResult)
+        {
+            searchResult = 0;
+            if (hashTable == null) return false;
+            if (hashTable.Contains(key))
+            {
+                if (AutoCasting)
+                {
+                    searchResult = (Int64)((Double)hashTable[key]);
+                }
+                else
+                {
+                    searchResult = Int64.Parse((string)hashTable[key]);
+                }
+                return true;
+            }
+            return false;
+        }
+        public static bool Find(string key, Hashtable hashTable, out UInt16 searchResult)
+        {
+            searchResult = 0;
+            if (hashTable == null) return false;
+            if (hashTable.Contains(key))
+            {
+                if (AutoCasting)
+                {
+                    searchResult = (UInt16)((Double)hashTable[key]);
+                }
+                else
+                {
+                    searchResult = UInt16.Parse((string)hashTable[key]);
+                }
+                return true;
+            }
+            return false;
+        }
+        public static bool Find(string key, Hashtable hashTable, out UInt32 searchResult)
+        {
+            searchResult = 0;
+            if (hashTable == null) return false;
+            if (hashTable.Contains(key))
+            {
+                if (AutoCasting)
+                {
+                    searchResult = (UInt32)((Double)hashTable[key]);
+                }
+                else
+                {
+                    searchResult = UInt32.Parse((string)hashTable[key]);
+                }
+                return true;
+            }
+            return false;
+        }
+        public static bool Find(string key, Hashtable hashTable, out UInt64 searchResult)
+        {
+            searchResult = 0;
+            if (hashTable == null) return false;
+            if (hashTable.Contains(key))
+            {
+                if (AutoCasting)
+                {
+                    searchResult = (UInt64)((Double)hashTable[key]);
+                }
+                else
+                {
+                    searchResult = UInt64.Parse((string)hashTable[key]);
+                }
+                return true;
+            }
+            return false;
+        }
+    }
 }
 

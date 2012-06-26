@@ -36,22 +36,20 @@
   <Import Project="$(NetMfTargetsBaseDir)$(TargetFrameworkVersion)\CSharp.Targets" />
   <ItemGroup>
     <Compile Include="JSON.cs" />
-    <Compile Include="JSONObject.cs" />
-    <Compile Include="JSONParser.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="RFIDCard.cs" />
+    <Compile Include="WiFlyGSX_SPI.cs" />
+    <Compile Include="WiFlySocket.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Microsoft.SPOT.Hardware" />
     <Reference Include="Microsoft.SPOT.Native" />
     <Reference Include="SecretLabs.NETMF.Hardware" />
     <Reference Include="SecretLabs.NETMF.Hardware.Netduino" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\astra.http\astra.http.csproj">
-      <Project>{25543F80-99A4-457C-8220-FF5FB19C9F2D}</Project>
-      <Name>astra.http</Name>
-    </ProjectReference>
+    <Reference Include="Toolbox.NETMF, Version=0.1.0.0, Culture=neutral, processorArchitecture=MSIL" />
+    <Reference Include="Toolbox.NETMF.NET">
+      <HintPath>..\Dependencies\Toolbox.NETMF.NET.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>
