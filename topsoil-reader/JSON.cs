@@ -32,23 +32,7 @@ namespace Controller
 
 		private const int BUILDER_CAPACITY = 2000;
 
-        //public static object JsonDecodeFromFile(string file)
-        //{
-        //    using (FileStream fs = new FileStream(file, FileMode.Open))
-        //    {
-        //        using (StreamReader sr = new StreamReader(fs))
-        //        {
-        //            // config.js is used by both the backend and frontend for configuration.
-        //            // The frontend requires a js var declaration in it, so strip the var components
-        //            // from the string
-        //            string configString = sr.ReadToEnd();
-        //            configString = configString.Substring(11, configString.Length - 12);
-        //            bool success = true;
-        //            return JsonDecode(configString, ref success);
-        //        }
-        //    }
-        //}
-
+        
 		/// <summary>
 		/// Parses the string json into a value
 		/// </summary>

@@ -2,6 +2,7 @@ using System;
 using Microsoft.SPOT;
 using Toolbox.NETMF;
 using Toolbox.NETMF.Hardware;
+using Toolbox.NETMF.Hardware.GSXSPI;
 
 /*
  * Copyright 2012 Stefan Thoolen (http://www.netmftoolbox.com/)

@@ -9,8 +9,9 @@ using SecretLabs.NETMF.Hardware.Netduino;
 //using netduino.helpers.Helpers;
 using System.Collections;
 using Controller;
-using Toolbox.NETMF.Hardware;
+//using Toolbox.NETMF.Hardware;
 using Toolbox.NETMF.NET;
+using Toolbox.NETMF.Hardware.GSXSPI;
 
 namespace seedcoworking.topsoilreader
 {
@@ -185,8 +186,8 @@ namespace seedcoworking.topsoilreader
 
                             + "]";
                 // Creates a socket
-                //SimpleSocket Socket = new WiFlySocket("seed-api.herokuapp.com", 80, WifiModule);
-                SimpleSocket Socket = new WiFlySocket("api.seedcoworking.com", 80, WifiModule);
+                SimpleSocket Socket = new WiFlySocket("seed-api.herokuapp.com", 80, WifiModule);
+                //SimpleSocket Socket = new WiFlySocket("api.seedcoworking.com", 80, WifiModule);
 
                 // Connects to the socket
                 Socket.Connect();

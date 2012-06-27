@@ -38,7 +38,7 @@ using Microsoft.SPOT.Hardware;
  * 17 Dec 2010 -- "Phillip" / "Azalea Galaxy" Original code for Arduino (https://github.com/sparkfun/WiFly-Shield)
  * 
  * */
-namespace Toolbox.NETMF.Hardware
+namespace Toolbox.NETMF.Hardware.GSXSPI
 {
     /// <summary>
     /// Roving Networks WiFly GSX module driver
