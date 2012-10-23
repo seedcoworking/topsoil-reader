@@ -1,7 +1,8 @@
 using System;
 using System.Text;
 using System.Threading;
-using System.IO.Ports;
+using System.IO;
+//using System.IO.Ports;
 using Microsoft.SPOT;
 using Microsoft.SPOT.Hardware;
 
@@ -92,8 +93,10 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
         /// <param name="deviceType">Which version of the shell</param>
         /// <param name="CommandChar">The character used to enter command mode</param>
         /// <param name="DebugMode">Enables debug mode</param>
-        public WiFlyGSX_SPI(DeviceType deviceType, SPI.SPI_module spiModule, Cpu.Pin chipSelect, string CommandChar = "$", bool DebugMode = false)
+        public WiFlyGSX_SPI(DeviceType deviceType, SPI.SPI_module spiModule, Cpu.Pin chipSelect, 
+            string CommandChar = "$", bool DebugMode = false, uint BufferSize = 2000)
         {
+            _SPI_StreamBuffer_Max = BufferSize;
             m_deviceType = deviceType;
             this.m_spiModule = spiModule;
             this.m_chipSelect = chipSelect;
@@ -141,6 +144,16 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
             this._CommandMode_Start();
             //enterCommandMode();
 
+            //set up time sync
+            //if (!this._CommandMode_Exec("set t z 5")) throw new SystemException(this._CommandMode_Response);
+            //if (!this._CommandMode_Exec("set time port 123")) throw new SystemException(this._CommandMode_Response);
+            //if (!this._CommandMode_Exec("set time enable 1440")) throw new SystemException(this._CommandMode_Response);
+            //if (!this._CommandMode_Exec("show time")) throw new SystemException(this._CommandMode_Response);
+            //if (!this._CommandMode_Exec("time")) throw new SystemException(this._CommandMode_Response);
+            //if (!this._CommandMode_Exec("show t t")) throw new SystemException(this._CommandMode_Response);
+            
+
+            if (!this._CommandMode_Exec("set uart mode 0x10")) throw new SystemException(this._CommandMode_Response);
             // Disables system output; we only want to receive data when we request it, so we won't get bogus data through our streams
             if (!this._CommandMode_Exec("set sys printlvl 0")) throw new SystemException(this._CommandMode_Response);
             //if (SendCommand("set sys printlvl 0")=="") throw new SystemException(this._CommandMode_Response);
@@ -391,20 +404,22 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
         /// <returns>The data</returns>
         public string SocketRead(int Length = -1, string UntilReached = "")
         {
-            if (this._SPI_StreamBuffer.Length == 0) return "";
-
-            int SendLength = Length == -1 ? this._SPI_StreamBuffer.Length : Length;
-            if (UntilReached != "")
+            lock (_SPI_StreamBuffer_Lock)
             {
-                int Pos = this._SPI_StreamBuffer.IndexOf(UntilReached);
-                if (Pos < 0 || Pos >= SendLength) return "";
-                SendLength = Pos + UntilReached.Length;
+                if (this._SPI_StreamBuffer.Length == 0) return "";
+
+                int SendLength = Length == -1 ? this._SPI_StreamBuffer.Length : Length;
+                if (UntilReached != "")
+                {
+                    int Pos = this._SPI_StreamBuffer.IndexOf(UntilReached);
+                    if (Pos < 0 || Pos >= SendLength) return "";
+                    SendLength = Pos + UntilReached.Length;
+                }
+
+                string RetVal = this._SPI_StreamBuffer.Substring(0, SendLength);
+                this._SPI_StreamBuffer = this._SPI_StreamBuffer.Substring(RetVal.Length);
+                return RetVal;
             }
-
-            string RetVal = this._SPI_StreamBuffer.Substring(0, SendLength);
-            this._SPI_StreamBuffer = this._SPI_StreamBuffer.Substring(RetVal.Length);
-
-            return RetVal;
         }
         #endregion
 
@@ -429,6 +444,10 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
         private string _SPI_TextBuffer = "";
         /// <summary>Buffer while in Stream mode</summary>
         private string _SPI_StreamBuffer = "";
+        /// <summary>Maximum Buffer Size while in Stream mode</summary>
+        private uint _SPI_StreamBuffer_Max = 2000;
+        /// <summary>Object used to Lock() StreamBuffer threading</summary>
+        private Object _SPI_StreamBuffer_Lock = new Object();
 
         /// <summary>Buffer that will contain the last _SocketCloseString.length bytes</summary>
         private string _SPI_EndStreamCheck = "";
@@ -452,7 +471,7 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
                 WriteRegister(WiflyRegister.THR, ba[i]);
         }
 
-        byte[] getBytes(String str)
+        public byte[] getBytes(String str)
         {
             return Encoding.UTF8.GetBytes(str);
         }
@@ -473,54 +492,89 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
             String ReadBuffer; 
             while (true)
             {
-                ReadBuffer = ""; 
-                while ((ReadRegister(WiflyRegister.LSR) & 0x01) > 0)
+                ReadBuffer = "";
+                int max = 2000;
+                if (this._Mode == Modes.StreamingMode)max = (int)_SPI_StreamBuffer_Max - _SPI_StreamBuffer.Length;
+                bool end_of_packet = true;
+                for (int i = 0; i < max && !(end_of_packet = ((ReadRegister(WiflyRegister.LSR) & 0x01) == 0)); i++)
                 {
                     char c = (char)ReadRegister(WiflyRegister.RHR);
-                    ReadBuffer += c.ToString();
+                    ReadBuffer += c;
                 }
-                _SPI_DataReceived(ReadBuffer);
-                Thread.Sleep(4);
+                _SPI_DataReceived(ReadBuffer, end_of_packet);
+                if (!end_of_packet) Thread.Sleep(1);
+                else Thread.Sleep(4);
             }
         }
 
-        private void _SPI_DataReceived(String ReadBuffer)
+        private void _SPI_DataReceived(String ReadBuffer,bool end_of_packet)
         {
-            if (ReadBuffer.Length == 0) return;
+            if (ReadBuffer.Length == 0)
+            {
+                if (end_of_packet && this._Mode == Modes.CommandMode && this._SPI_TextBuffer != "") ReadBuffer += "\r\n";
+                else return;
+            }
 
             // Reads out the data and converts it to a string
             
             // While in Streaming mode, we need to handle the data differently
             if (this._Mode == Modes.StreamingMode)
             {
-                _DebugPrint('I', ReadBuffer);
-                string NewBuffer = this._SPI_StreamBuffer + ReadBuffer;
-
-                // Fixes the "*CLOS*" issue as described below
-                this._SPI_EndStreamCheck += ReadBuffer;
-                if (this._SPI_EndStreamCheck.Length > this._SocketCloseString.Length)
-                    this._SPI_EndStreamCheck = this._SPI_EndStreamCheck.Substring(this._SPI_EndStreamCheck.Length - this._SocketCloseString.Length);
-
-                // Do we need to leave Streaming Mode?
-                int CheckPos = NewBuffer.IndexOf(this._SocketCloseString);
-                if (CheckPos >= 0)
+                lock(_SPI_StreamBuffer_Lock)
                 {
-                    this._SPI_TextBuffer = NewBuffer.Substring(CheckPos + this._SocketCloseString.Length);
-                    NewBuffer = NewBuffer.Substring(0, CheckPos);
-                    this._Mode = Modes.Idle;
-                    _DebugPrint('D', "Left streaming mode");
-                }
-                // The closing string (default: "*CLOS*") is many times sent in multiple packets.
-                // This causes annoying issues of connections not shutting down well.
-                // This fixes that issue, but it's possible the last few bytes of the stream contain something like "*CL" or something.
-                else if (_SPI_EndStreamCheck == this._SocketCloseString)
-                {
-                    this._Mode = Modes.Idle;
-                    _DebugPrint('D', "Left streaming mode");
-                }
-                this._SPI_StreamBuffer = NewBuffer;
+                    _DebugPrint('I', ReadBuffer);
+                    //string NewBuffer = _SPI_StreamBuffer;
 
-                return;
+                    // Fixes the "*CLOS*" issues as described below
+                    if(_SPI_EndStreamCheck != _SocketCloseString)
+                    {
+                        _SPI_EndStreamCheck += ReadBuffer;
+                        // Does it contain a closing string?
+                        int CheckPos = _SPI_EndStreamCheck.IndexOf(this._SocketCloseString);
+                        if (CheckPos >= 0)
+                        {
+                            // jtz - sometimes the closing string (default: "*CLOS*") is WITHIN the string.
+                            // might be just in SPI mode with the UART
+                            //so SPI_TextBuffer has to be appended back on
+                            this._SPI_TextBuffer = _SPI_EndStreamCheck.Substring(CheckPos + this._SocketCloseString.Length);
+                            _SPI_StreamBuffer = _SPI_EndStreamCheck.Substring(0, CheckPos);
+                            _SPI_StreamBuffer += this._SPI_TextBuffer;
+                            _SPI_TextBuffer = "";
+                            _SPI_EndStreamCheck = _SocketCloseString;
+                        }
+                        else 
+                        {
+                            //extract partial string and save for next receive
+                            int len = _SPI_EndStreamCheck.Length;
+                            if (len > _SocketCloseString.Length)
+                            {
+                                len = this._SPI_EndStreamCheck.Length - this._SocketCloseString.Length;
+                                _SPI_StreamBuffer += _SPI_EndStreamCheck.Substring(0,len);
+                                _SPI_EndStreamCheck = _SPI_EndStreamCheck.Substring(len);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        _SPI_StreamBuffer += ReadBuffer;
+                    }
+                    //{
+                    //    this._SPI_EndStreamCheck += ReadBuffer;
+                    //    if (this._SPI_EndStreamCheck.Length > this._SocketCloseString.Length)
+                    //    this._SPI_EndStreamCheck = this._SPI_EndStreamCheck.Substring(this._SPI_EndStreamCheck.Length - this._SocketCloseString.Length);
+                    //}
+                    
+                    // The closing string (default: "*CLOS*") is many times sent in multiple packets.
+                    // This causes annoying issues of connections not shutting down well.
+                    // This fixes that issue, but it's possible the last few bytes of the stream contain something like "*CL" or something.
+                    if (end_of_packet && _SPI_EndStreamCheck == this._SocketCloseString)
+                    {
+                        _SPI_EndStreamCheck = ""; ;
+                        this._Mode = Modes.Idle;
+                        _DebugPrint('D', "Left streaming mode");
+                    }
+                    return;
+                }
             }
 
             // When not in Streaming Mode we check if we need to parse text line by line
@@ -602,8 +656,9 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
             if (!this._CommandMode_ResponseComplete)
             {
                 this._CommandMode_Response += Text + "\r\n";
-                if (Text == "AOK" || Text.Substring(0, 3) == "ERR")
+                if (Text == "AOK" || Text == "<2.31> " || Text.Substring(0, 3) == "ERR")
                 {
+                    if (Text == "<2.31> ") this._CommandMode_Response += "AOK\r\n";
                     this._CommandMode_Response = this._CommandMode_Response.TrimEnd();
                     this._CommandMode_ResponseComplete = true;
                 }
@@ -758,6 +813,8 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
         private void _DebugPrint(char Flag, string Text)
         {
             if (!this.DebugMode) return;
+            //Debug.GC(true);
+
             Debug.Print(Flag + ": " + Tools.Escape(Text));
         }
         #endregion

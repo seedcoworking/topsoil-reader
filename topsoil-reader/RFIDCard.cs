@@ -7,12 +7,14 @@ namespace seedcoworking.topsoilreader
     public class RFIDCard
     {
         public string number { get; set; }
+        public int plan_id { get; set; }
         public bool valid { get; set; }
-        public Schedule schedule { get; set; }
+        public Plan plan { get; set; }
     }
 
-    public class Schedule
+    public class Plan
     {
+        public int id { get; set;}
         public string name { get; set; }
         public Hashtable days { get; set; }
     }

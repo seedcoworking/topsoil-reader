@@ -2,6 +2,8 @@ using System;
 using System.Collections;
 using System.Text;
 using System.IO;
+using Microsoft.SPOT;
+using System.Threading;
 
 namespace Controller
 {
@@ -12,9 +14,20 @@ namespace Controller
 	/// JSON uses Arrays and Objects. These correspond here to the datatypes ArrayList and Hashtable.
 	/// All numbers are parsed to doubles.
 	/// Pulled from http://techblog.procurios.nl/k/618/news/view/14605/14863/How-do-I-write-my-own-parser-for-JSON.html
-	/// </summary>
+    ///
+    /// TestMonkey107
+    /// Combined code from the two sources above
+    /// Added the ability to decode from and serialize to a Filestream
+    /// Added a few more data types
+    /// Added support for FfDB datatypes
+    ///
+    ///
+    ///
+    ///
+    ///
+    /// </summary>
 	/// 	
-	public class JSON
+    public class JSON
 	{
         public static bool AutoCasting = true;
         public const int TOKEN_NONE = 0;
@@ -30,39 +43,96 @@ namespace Controller
 		public const int TOKEN_FALSE = 10;
 		public const int TOKEN_NULL = 11;
 
-		private const int BUILDER_CAPACITY = 2000;
+		private const int BUILDER_CAPACITY = 1000;
 
-        
-		/// <summary>
+        /// <summary>
 		/// Parses the string json into a value
 		/// </summary>
 		/// <param name="json">A JSON string.</param>
-		/// <returns>An ArrayList, a Hashtable, a double, a string, null, true, or false</returns>
-		public static object JsonDecode(string json)
+		/// <returns>An ArrayList, a Hashtable, a double, a string, null or bool</returns>
+		public static object JsonDecode(ref string json)
 		{
-			bool success = true;
-
-			return JsonDecode(json, ref success);
+            bool success = false;
+            return JsonDecode(ref json, ref success);
 		}
 
+        /// <summary>
+        /// Parses the string json into a value; and fills 'success' with the successfullness of the parse.
+        /// </summary>
+        /// <param name="json">A JSON string.</param>
+        /// <param name="success">Successful parse?</param>
+		/// <returns>An ArrayList, a Hashtable, a double, a string, null or bool</returns>
+        public static object JsonDecode(ref string json, ref bool success)
+        {
+            return JsonDecode(ref json, ref success, null);
+        }
+            
 		/// <summary>
 		/// Parses the string json into a value; and fills 'success' with the successfullness of the parse.
 		/// </summary>
 		/// <param name="json">A JSON string.</param>
 		/// <param name="success">Successful parse?</param>
-		/// <returns>An ArrayList, a Hashtable, a double, a string, null, true, or false</returns>
-		public static object JsonDecode(string json, ref bool success)
+        /// <returns>An ArrayList, a Hashtable, a double, a string, null, bool, or custom object</returns>
+        public static object JsonDecode(ref string json, ref bool success, JsonCustomObjectsDefinition jco)
 		{
-			success = true;
+            success = false;
 			if (json != null) {
-				char[] charArray = json.ToCharArray();
-				int index = json.IndexOf('[');
-				object value = ParseValue(charArray, ref index, ref success);
-				return value;
+                if (jco == null) jco = new JsonCustomObjectsDefinition();
+                char[] charArray = json.ToCharArray();
+                //int index = json.IndexOf('[');
+                int index = 0;
+                json = null;
+                object value = ParseValue(charArray, ref index, ref success, ref jco);
+                success = true;
+                return value;
 			} else {
 				return null;
 			}
 		}
+
+
+        /// <summary>
+        /// Parses the Filestream json into a value
+        /// </summary>
+        /// <param name="jfs">A JSON Filestream.</param>
+        /// <returns>An ArrayList, a Hashtable, a double, a string, null, true, or false</returns>
+        public static object JsonDecode(FileStream jsonStream)
+        {
+            bool success = false;
+            return JsonDecode(jsonStream, ref success);
+        }
+
+        /// <summary>
+        /// Parses the FileStream json into a value; and fills 'success' with the successfullness of the parse.
+        /// </summary>
+        /// <param name="jfs">A JSON FileStream.</param>
+        /// <param name="success">Successful parse?</param>
+        /// <returns>An ArrayList, a Hashtable, a double, a string, null, true, or false</returns>
+        public static object JsonDecode(FileStream jsonStream, ref bool success)
+        {
+            return JsonDecode(jsonStream, ref success, null);
+        }
+        
+        /// <summary>
+        /// Parses the FileStream json into a value; and fills 'success' with the successfullness of the parse.
+        /// </summary>
+        /// <param name="jfs">A JSON FileStream.</param>
+        /// <param name="success">Successful parse?</param>
+        /// <returns>An ArrayList, a Hashtable, a double, a string, null, true, or false</returns>
+        public static object JsonDecode(FileStream jsonStream, ref bool success, JsonCustomObjectsDefinition jco)
+        {
+            success = false;
+            if (jsonStream != null)
+            {
+                if (jco == null) jco = new JsonCustomObjectsDefinition();
+                object value = ParseValue(jsonStream, ref success, ref jco);
+                return value;
+            }
+            else
+            {
+                return null;
+            }
+        }
 
 		/// <summary>
 		/// Converts a Hashtable / ArrayList object into a JSON string
@@ -76,10 +146,11 @@ namespace Controller
 			return (success ? builder.ToString() : null);
 		}
 
-		protected static Hashtable ParseObject(char[] json, ref int index, ref bool success)
+        protected static object ParseObject(char[] json, ref int index, ref bool success, ref JsonCustomObjectsDefinition jco)
 		{
-			Hashtable table = new Hashtable();
-			int token;
+            //Hashtable table = new Hashtable();
+            object table = jco.HashTable.NewHashTable();
+            int token;
 
 			// {
 			NextToken(json, ref index);
@@ -98,8 +169,9 @@ namespace Controller
 				} else {
 
 					// name
-					string name = ParseString(json, ref index, ref success);
-					if (!success) {
+                    string name = ParseString(json, ref index, ref success);
+                    if (!success)
+                    {
 						success = false;
 						return null;
 					}
@@ -112,23 +184,91 @@ namespace Controller
 					}
 
 					// value
-					object value = ParseValue(json, ref index, ref success);
+                    object value = ParseValue(json, ref index, ref success, ref jco);
 					if (!success) {
 						success = false;
 						return null;
 					}
 
-					table[name] = value;
+                    jco.HashTable.Set(table, name, value);
+                    //HashTableSet(table, name, value);
+                    //table[name] = value;
 				}
 			}
 
 			return table;
 		}
 
-		protected static ArrayList ParseArray(char[] json, ref int index, ref bool success)
-		{
-			ArrayList array = new ArrayList();
+        protected static object ParseObject(FileStream jsonStream, ref bool success, ref JsonCustomObjectsDefinition jco)
+        {
+            //Hashtable table = new Hashtable();
+            object table = jco.HashTable.NewHashTable();
+            int token;
 
+            // {
+            NextToken(jsonStream);
+
+            bool done = false;
+            while (!done)
+            {
+                token = LookAhead(jsonStream);
+                if (token == JSON.TOKEN_NONE)
+                {
+                    success = false;
+                    return null;
+                }
+                else if (token == JSON.TOKEN_COMMA)
+                {
+                    NextToken(jsonStream);
+                }
+                else if (token == JSON.TOKEN_CURLY_CLOSE)
+                {
+                    NextToken(jsonStream);
+                    return table;
+                }
+                else
+                {
+
+                    // name
+                    
+                    string name = ParseString(jsonStream, ref success);
+                    if (!success)
+                    {
+                        success = false;
+                        return null;
+                    }
+
+                    // :
+                    token = NextToken(jsonStream);
+                    if (token != JSON.TOKEN_COLON)
+                    {
+                        success = false;
+                        return null;
+                    }
+
+                    // value
+                    object value = ParseValue(jsonStream, ref success, ref jco);
+                    if (!success)
+                    {
+                        success = false;
+                        return null;
+                    }
+
+                    jco.HashTable.Set(table, name, value);
+                    //HashTableSet(table,name,value);
+                    //table[name] = value;
+                    
+                }
+            }
+
+            return table;
+        }
+
+
+        protected static object ParseArray(char[] json, ref int index, ref bool success, ref JsonCustomObjectsDefinition jco)
+		{
+			//ArrayList array = new ArrayList();
+            object array = jco.ArrayList.NewArrayList();
 			// [
 			NextToken(json, ref index);
 
@@ -144,37 +284,81 @@ namespace Controller
 					NextToken(json, ref index);
 					break;
 				} else {
-					object value = ParseValue(json, ref index, ref success);
+                    object value = ParseValue(json, ref index, ref success, ref jco);
 					if (!success) {
 						return null;
 					}
-
-					array.Add(value);
+                    jco.ArrayList.Add(array, value);
+                    //ArrayListAdd(array, value);
+					//array.Add(value);
 				}
 			}
 
 			return array;
 		}
 
-		protected static object ParseValue(char[] json, ref int index, ref bool success)
+        protected static object ParseArray(FileStream jsonStream, ref bool success, ref JsonCustomObjectsDefinition jco)
+        {
+            //ArrayList array = new ArrayList();
+            object array = jco.ArrayList.NewArrayList();
+            // [
+            NextToken(jsonStream);
+
+            bool done = false;
+            while (!done)
+            {
+                int token = LookAhead(jsonStream);
+                if (token == JSON.TOKEN_NONE)
+                {
+                    success = false;
+                    return null;
+                }
+                else if (token == JSON.TOKEN_COMMA)
+                {
+                    NextToken(jsonStream);
+                }
+                else if (token == JSON.TOKEN_SQUARED_CLOSE)
+                {
+                    NextToken(jsonStream);
+                    break;
+                }
+                else
+                {
+                    object value = ParseValue(jsonStream, ref success, ref jco);
+                    if (!success)
+                    {
+                        return null;
+                    }
+                    jco.ArrayList.Add(array, value);
+                    //ArrayListAdd((object)array, (object)value);
+                    //array.Add(value);
+                }
+            }
+
+            return array;
+        }
+
+
+        protected static object ParseValue(char[] json, ref int index, ref bool success, ref JsonCustomObjectsDefinition jco)
 		{
+            Thread.Sleep(1);//helps the netduino handle interrupt requests 
             if (index < 0) index = 0;
             switch (LookAhead(json, index)) {
 				case JSON.TOKEN_STRING:
-					return ParseString(json, ref index, ref success);
+                    return ParseString(json, ref index, ref success, ref jco);
 				case JSON.TOKEN_NUMBER:
-					return ParseNumber(json, ref index, ref success);
+                    return ParseNumber(json, ref index, ref success, ref jco);
 				case JSON.TOKEN_CURLY_OPEN:
-					return ParseObject(json, ref index, ref success);
+                    return ParseObject(json, ref index, ref success, ref jco);
 				case JSON.TOKEN_SQUARED_OPEN:
-					return ParseArray(json, ref index, ref success);
-				case JSON.TOKEN_TRUE:
-					NextToken(json, ref index);
-					return true;
-				case JSON.TOKEN_FALSE:
-					NextToken(json, ref index);
-					return false;
-				case JSON.TOKEN_NULL:
+                    return ParseArray(json, ref index, ref success, ref jco);
+                case JSON.TOKEN_TRUE:
+                    NextToken(json, ref index);
+                    return jco.BoolProperty.NewBool(true);
+                case JSON.TOKEN_FALSE:
+                    NextToken(json, ref index);
+                    return jco.BoolProperty.NewBool(false);
+                case JSON.TOKEN_NULL:
 					NextToken(json, ref index);
 					return null;
 				case JSON.TOKEN_NONE:
@@ -185,10 +369,48 @@ namespace Controller
 			return null;
 		}
 
-		protected static string ParseString(char[] json, ref int index, ref bool success)
-		{
-			StringBuilder s = new StringBuilder(BUILDER_CAPACITY);
-			char c;
+
+        protected static object ParseValue(FileStream jsonStream, ref bool success, ref JsonCustomObjectsDefinition jco)
+        {
+            Debug.Print("Memory: " + Debug.GC(true).ToString());
+            Thread.Sleep(1);//helps the netduino handle interrupt requests 
+            if (jsonStream != null)
+            {
+                switch (LookAhead(jsonStream))
+                {
+                    case JSON.TOKEN_STRING:
+                        return ParseString(jsonStream, ref success, ref jco);
+                    case JSON.TOKEN_NUMBER:
+                        return ParseNumber(jsonStream, ref success, ref jco);
+                    case JSON.TOKEN_CURLY_OPEN:
+                        return ParseObject(jsonStream, ref success, ref jco);
+                    case JSON.TOKEN_SQUARED_OPEN:
+                        return ParseArray(jsonStream, ref success, ref jco);
+                    case JSON.TOKEN_TRUE:
+                        NextToken(jsonStream);
+                        return jco.BoolProperty.NewBool(true);
+                    case JSON.TOKEN_FALSE:
+                        NextToken(jsonStream);
+                        return jco.BoolProperty.NewBool(false);
+                    case JSON.TOKEN_NULL:
+                        NextToken(jsonStream);
+                        return null;
+                    case JSON.TOKEN_NONE:
+                        break;
+                }
+            }
+            success = false;
+            return null;
+        }
+
+        protected static object ParseString(char[] json, ref int index, ref bool success, ref JsonCustomObjectsDefinition jco)
+        {
+            return jco.StringProperty.NewString(ParseString(json, ref index,ref success));
+        }
+        protected static string ParseString(char[] json, ref int index, ref bool success)
+        {
+            String s = "";
+            char c;
 
 			EatWhitespace(json, ref index);
 
@@ -213,28 +435,28 @@ namespace Controller
 					}
 					c = json[index++];
 					if (c == '"') {
-						s.Append('"');
+						s +=('"');
 					} else if (c == '\\') {
-						s.Append('\\');
+						s +=('\\');
 					} else if (c == '/') {
-						s.Append('/');
+						s +=('/');
 					} else if (c == 'b') {
-						s.Append('\b');
+						s +=('\b');
 					} else if (c == 'f') {
-						s.Append('\f');
+						s +=('\f');
 					} else if (c == 'n') {
-						s.Append('\n');
+						s +=('\n');
 					} else if (c == 'r') {
-						s.Append('\r');
+						s +=('\r');
 					} else if (c == 't') {
-						s.Append('\t');
+						s +=('\t');
 					} else if (c == 'u') {
 						int remainingLength = json.Length - index;
 						if (remainingLength >= 4) {
 							// parse the 32 bit hex into an integer codepoint
 							uint codePoint = UInt32.Parse(new string(json, index, 4));
 							// convert the integer codepoint to a unicode char and add to string
-							s.Append(codePoint);
+							s +=(codePoint);
 							// skip 4 chars
 							index += 4;
 						} else {
@@ -243,7 +465,7 @@ namespace Controller
 					}
 
 				} else {
-					s.Append(c);
+					s +=(c);
 				}
 
 			}
@@ -253,11 +475,126 @@ namespace Controller
 				return null;
 			}
 
-			return s.ToString();
+
+            return s.ToString();
 		}
 
-		protected static double ParseNumber(char[] json, ref int index, ref bool success)
-		{
+
+        protected static object ParseString(FileStream jsonStream, ref bool success, ref JsonCustomObjectsDefinition jco)
+        {
+            return jco.StringProperty.NewString(ParseString(jsonStream, ref success));
+        }
+        protected static string ParseString(FileStream jsonStream, ref bool success)
+        {
+            String s = "";
+            char c;
+
+            EatWhitespace(jsonStream);
+
+            // "
+            c = (char)jsonStream.ReadByte();
+
+            bool complete = false;
+            while (!complete)
+            {
+
+                if (jsonStream.Position == jsonStream.Length)
+                {
+                    break;
+                }
+
+                c = (char)jsonStream.ReadByte();
+                if (c == '"')
+                {
+                    complete = true;
+                    break;
+                }
+                else if (c == '\\')
+                {
+
+                    if (jsonStream.Position == jsonStream.Length)
+                    {
+                        break;
+                    }
+                    c = (char)jsonStream.ReadByte();
+                    if (c == '"')
+                    {
+                        s += ('"');
+                    }
+                    else if (c == '\\')
+                    {
+                        s += ('\\');
+                    }
+                    else if (c == '/')
+                    {
+                        s += ('/');
+                    }
+                    else if (c == 'b')
+                    {
+                        s += ('\b');
+                    }
+                    else if (c == 'f')
+                    {
+                        s += ('\f');
+                    }
+                    else if (c == 'n')
+                    {
+                        s += ('\n');
+                    }
+                    else if (c == 'r')
+                    {
+                        s += ('\r');
+                    }
+                    else if (c == 't')
+                    {
+                        s += ('\t');
+                    }
+                    else if (c == 'u')
+                    {
+                        long remainingLength = jsonStream.Length - jsonStream.Position;
+                        if (remainingLength >= 4)
+                        {
+                            // parse the 32 bit hex into an integer codepoint
+                            string json = "";
+                            for (int i = 0; i < 4; i++)
+                            {
+                                json += (char)jsonStream.ReadByte();
+                            }
+                            uint codePoint = UInt32.Parse(json);
+                            // convert the integer codepoint to a unicode char and add to string
+                            s += (codePoint);
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+
+                }
+                else
+                {
+                    s += (c);
+                }
+
+            }
+
+            if (!complete)
+            {
+                success = false;
+                return null;
+            }
+            success = true;
+            return s.ToString();
+        }
+
+        protected static object ParseNumber(char[] json, ref int index, ref bool success, ref JsonCustomObjectsDefinition jco)
+        {
+                var n =jco.FloatProperty.NewFloat(ParseNumber(json, ref index, ref success));
+                return n;
+        }
+
+        protected static double ParseNumber(char[] json, ref int index, ref bool success)
+        {
 			EatWhitespace(json, ref index);
 
 			int lastIndex = GetLastIndexOfNumber(json, index);
@@ -269,6 +606,31 @@ namespace Controller
 			index = lastIndex + 1;
 			return number;
 		}
+
+        protected static object ParseNumber(FileStream jsonStream, ref bool success, ref JsonCustomObjectsDefinition jco)
+        {
+            var d = ParseNumber(jsonStream, ref success);
+            var n = jco.FloatProperty.NewFloat(d);
+            return n;
+        }
+
+        protected static double ParseNumber(FileStream jsonStream, ref bool success)
+        {
+            EatWhitespace(jsonStream);
+
+            long lastIndex = GetLastIndexOfNumber(jsonStream);
+            int charLength = (int)(lastIndex - jsonStream.Position) + 1;
+            string json = "";
+            for (int i = 0; i < charLength; i++)
+            {
+                json += (char)jsonStream.ReadByte();
+            }
+            double number;
+            success = Double.TryParse(json, out number);
+
+            return number;
+        }
+
 
 		protected static int GetLastIndexOfNumber(char[] json, int index)
 		{
@@ -282,31 +644,104 @@ namespace Controller
 			return lastIndex - 1;
 		}
 
-		protected static void EatWhitespace(char[] json, ref int index)
-		{
-			for (; index < json.Length; index++) {
-				if (" \t\n\r".IndexOf(json[index]) == -1) {
-					break;
-				}
-			}
-		}
+        protected static long GetLastIndexOfNumber(FileStream jsonStream)
+        {
+            long saveIndex = jsonStream.Position;
+            long lastIndex = saveIndex;
+            while (jsonStream.Position < jsonStream.Length)
+            {
+                if ("0123456789+-.eE".IndexOf((char)jsonStream.ReadByte()) == -1)
+                {
+                    lastIndex = jsonStream.Position-2;
+                    jsonStream.Seek(saveIndex, SeekOrigin.Begin);
+                    break;
+                }
+            }
+            
+            return lastIndex;
+        }
 
-		protected static int LookAhead(char[] json, int index)
-		{
-			int saveIndex = index;
-			return NextToken(json, ref saveIndex);
-		}
+        protected static void EatWhitespace(char[] json, ref int index)
+        {
+            for (; index < json.Length; index++)
+            {
+                if (" \t\n\r".IndexOf(json[index]) == -1)
+                {
+                    break;
+                }
+            }
+        }
 
-		protected static int NextToken(char[] json, ref int index)
+        protected static void EatWhitespace(FileStream  jsonStream)
+        {
+            while (jsonStream.Position <jsonStream.Length)
+            {
+                if (" \t\n\r".IndexOf((char)jsonStream.ReadByte()) == -1)
+                {
+                    jsonStream.Seek(-1,SeekOrigin.Current);
+                    break;
+                }
+            }
+        }
+
+        protected static int LookAhead(char[] json, int index)
+        {
+            int saveIndex = index;
+            return NextToken(json, ref saveIndex);
+        }
+
+        protected static int LookAhead(FileStream jsonStream)
+        {
+            long saveIndex = jsonStream.Position;
+            var ret = NextToken(jsonStream);
+            jsonStream.Seek(saveIndex, SeekOrigin.Begin);
+            return ret;
+        }
+
+        protected static int NextToken(char[] json, ref int index)
 		{
 			EatWhitespace(json, ref index);
 
 			if (index == json.Length) {
 				return JSON.TOKEN_NONE;
 			}
+            int ret = GetTokenChar(json[index]);
+            if(ret!= JSON.TOKEN_NONE)
+            {
+                index++;
+                return ret;
+            }
+            return GetTokenWord(json, ref index);
+        }
 
-			char c = json[index];
-			index++;
+
+		protected static int NextToken(FileStream jsonStream)
+		{
+        	EatWhitespace(jsonStream);
+
+			if (jsonStream.Position == jsonStream.Length) {
+				return JSON.TOKEN_NONE;
+			}
+            int ret = GetTokenChar((char)jsonStream.ReadByte());
+            if(ret!= JSON.TOKEN_NONE)return ret;
+            jsonStream.Seek(-1,SeekOrigin.Current);
+            long max = jsonStream.Length - jsonStream.Position;
+            if(max >5) max = 5;
+            int index;
+            char[] json = {' ',' ',' ',' ',' '};
+            for (index = 0; index < max; index++)
+            {
+                json[index]=(char)jsonStream.ReadByte();
+            }
+            index = 0;
+            ret = GetTokenWord(json, ref index);
+            jsonStream.Seek(index - max, SeekOrigin.Current);                        
+            return ret;
+        }
+
+        protected static int GetTokenChar(char c)
+		{
+
 			switch (c) {
 				case '{':
 					return JSON.TOKEN_CURLY_OPEN;
@@ -327,7 +762,11 @@ namespace Controller
 				case ':':
 					return JSON.TOKEN_COLON;
 			}
-			index--;
+            return JSON.TOKEN_NONE;
+        }
+
+        protected static int GetTokenWord(char[] json, ref int index)
+        {
 
 			int remainingLength = json.Length - index;
 
@@ -367,6 +806,8 @@ namespace Controller
 
 			return JSON.TOKEN_NONE;
 		}
+
+
 
 		protected static bool SerializeValue(object value, StringBuilder builder)
 		{
@@ -414,25 +855,6 @@ namespace Controller
 
 				first = false;
 			}
-			/*
-			while (e.MoveNext()) {
-				
-				string key = ((DictionaryEntry)e).Key.ToString();
-				object value = e.Value;
-
-				if (!first) {
-					builder.Append(", ");
-				}
-
-				SerializeString(key, builder);
-				builder.Append(":");
-				if (!SerializeValue(value, builder)) {
-					return false;
-				}
-
-				first = false;
-			}
-			*/
 			builder.Append("}");
 			return true;
 		}
@@ -502,208 +924,210 @@ namespace Controller
 			builder.Append(number.ToString());
 			return true;
 		}
-        public static bool Find(string key, Hashtable hashTable, out Hashtable searchResult)
+
+        public static void ArrayListAdd(Object array, Object value)
         {
-            searchResult = null;
-            if (hashTable == null) return false;
-            if (hashTable.Contains(key))
-            {
-                searchResult = (Hashtable)hashTable[key];
-                return true;
-            }
-            return false;
+            (array as ArrayList).Add(value);
         }
 
-        public static bool Find(string key, Hashtable hashTable, out ArrayList searchResult)
+        public static void HashTableSet(Object table, string name, Object value)
         {
-            searchResult = null;
-            if (hashTable == null) return false;
-            if (hashTable.Contains(key))
-            {
-                searchResult = (ArrayList)hashTable[key];
-                return true;
-            }
-            return false;
+            (table as Hashtable)[name] = value;
         }
-        public static bool Find(string key, Hashtable hashTable, out string searchResult)
+    }
+
+    
+    public class JsonCustomObjectsDefinition
+    {
+        private IJsonArrayList _arrayList = new JsonArrayList();
+        private IJsonHashTable _hashTable = new JsonHashTable();
+        private IJsonStringProperty _stringProperty = new JsonStringProperty();
+        private IJsonIntProperty _intProperty = new JsonIntProperty();
+        private IJsonFloatProperty _floatProperty = new JsonFloatProperty();
+        private IJsonBoolProperty _boolProperty = new JsonBoolProperty();
+        private IJsonDatetimeProperty _datetimeProperty= new JsonDatetimeProperty();
+
+        public JsonCustomObjectsDefinition(){}
+
+        public JsonCustomObjectsDefinition(IJsonArrayList arrayList,
+                                IJsonHashTable hashTable,
+                                IJsonStringProperty stringProperty,
+                                IJsonIntProperty intProperty,
+                                IJsonFloatProperty floatProperty,
+                                IJsonBoolProperty boolProperty,
+                                IJsonDatetimeProperty datetimeProperty)
         {
-            searchResult = null;
-            if (hashTable == null) return false;
-            if (hashTable.Contains(key))
-            {
-                searchResult = (string)hashTable[key].ToString();
-                return true;
-            }
-            return false;
+            if(arrayList!=null)_arrayList=arrayList;
+            if(hashTable!=null)_hashTable= hashTable;
+            if(stringProperty!=null)_stringProperty=stringProperty;
+            if(intProperty!=null)_intProperty=intProperty;
+            if(floatProperty!=null)_floatProperty=floatProperty;
+            if(boolProperty!=null)_boolProperty=boolProperty;
+            if (datetimeProperty != null) _datetimeProperty = datetimeProperty;
         }
-        public static bool Find(string key, Hashtable hashTable, out bool searchResult)
+
+        public IJsonArrayList ArrayList { get { return _arrayList; } }
+        public IJsonHashTable HashTable { get { return _hashTable; } }
+        public IJsonStringProperty StringProperty { get { return _stringProperty; } }
+        public IJsonIntProperty IntProperty { get { return _intProperty; } }
+        public IJsonFloatProperty FloatProperty { get { return _floatProperty; } }
+        public IJsonBoolProperty BoolProperty { get { return _boolProperty; } }
+        public IJsonDatetimeProperty DatetimeProperty { get { return _datetimeProperty; } }
+    }
+
+
+    public interface IJsonArrayList
+    {
+        object NewArrayList();
+        int Add(object arrayList, object obj);
+        void Clear(object arrayList);
+        bool Contains(object arrayList, object obj);
+        int Count(object arrayList);
+        void Remove(object arrayList, object obj);
+        void RemoveAt(object arrayList, int i);
+    }
+
+    public class JsonArrayList : IJsonArrayList
+    {
+        public object NewArrayList(){ return new ArrayList(); }
+        public int Add(object arrayList, object obj) { return ((ArrayList)arrayList).Add(obj); }
+        public void Clear(object arrayList) { ((ArrayList)arrayList).Clear(); }
+        public bool Contains(object arrayList, object obj) { return ((ArrayList)arrayList).Contains(obj); }
+        public int Count(object arrayList) { return ((ArrayList)arrayList).Count; }
+        public void Remove(object arrayList, object obj) { ((ArrayList)arrayList).Remove(obj); }
+        public void RemoveAt(object arrayList, int i) { ((ArrayList)arrayList).RemoveAt(i); }
+    }
+
+    public interface IJsonHashTable
+    {
+        object NewHashTable();
+        void Clear(object hashTable);
+        bool Contains(object hashTable, object key);
+        int Count(object hashTable);
+        void Remove(object hashTable, object key);
+        void Set(object hashTable, object key, object value);
+    }
+
+    public class JsonHashTable : IJsonHashTable
+    {
+        public object NewHashTable() { return new Hashtable(); }
+        public void Clear(object hashTable) { ((Hashtable)hashTable).Clear(); }
+        public bool Contains(object hashTable, object key) { return ((Hashtable)hashTable).Contains(key); }
+        public int Count(object hashTable) { return ((Hashtable)hashTable).Count; }
+        public void Remove(object hashTable, object key) { ((Hashtable)hashTable).Remove(key); }
+        public void Set(object hashTable, object key, object value) { ((Hashtable)hashTable)[key] = value; }
+    }
+
+    public interface IJsonStringProperty
+    {
+        object NewString();
+        object NewString(string s);
+        string GetValue(object obj);
+        void SetValue(ref object obj, string s);
+    }
+
+    public class JsonStringProperty : IJsonStringProperty
+    {
+        public object NewString()
         {
-            searchResult = false;
-            if (hashTable == null) return false;
-            if (hashTable.Contains(key))
-            {
-                if (AutoCasting)
-                {
-                    searchResult = (bool)hashTable[key];
-                    return true;
-                }
-                var result = (string)hashTable[key];
-                if (result == "true")
-                {
-                    searchResult = true;
-                    return true;
-                }
-                if (result == "false")
-                {
-                    searchResult = false;
-                    return true;
-                }
-            }
-            return false;
+            return (string)"";
         }
-        public static bool Find(string key, Hashtable hashTable, out Double searchResult)
+        public object NewString(string s)
         {
-            searchResult = 0.0;
-            if (hashTable == null) return false;
-            if (hashTable.Contains(key))
-            {
-                if (AutoCasting)
-                {
-                    searchResult = (Double)hashTable[key];
-                }
-                else
-                {
-                    searchResult = Double.Parse((string)hashTable[key]);
-                }
-                return true;
-            }
-            return false;
+            string ret=s;
+            return ret;
         }
-        public static bool Find(string key, Hashtable hashTable, out float searchResult)
+        public string GetValue(object obj)
         {
-            searchResult = 0.0f;
-            if (hashTable == null) return false;
-            if (hashTable.Contains(key))
-            {
-                if (AutoCasting)
-                {
-                    searchResult = (float)((Double)hashTable[key]);
-                }
-                else
-                {
-                    searchResult = (float)Double.Parse((string)hashTable[key]);
-                }
-                return true;
-            }
-            return false;
+            return (string)obj;
         }
-        public static bool Find(string key, Hashtable hashTable, out Int16 searchResult)
+        public void SetValue(ref object obj, string s)
         {
-            searchResult = 0;
-            if (hashTable == null) return false;
-            if (hashTable.Contains(key))
-            {
-                if (AutoCasting)
-                {
-                    searchResult = (Int16)((Double)hashTable[key]);
-                }
-                else
-                {
-                    searchResult = Int16.Parse((string)hashTable[key]);
-                }
-                return true;
-            }
-            return false;
+            obj = s;
         }
-        public static bool Find(string key, Hashtable hashTable, out Int32 searchResult)
+    }
+
+    public interface IJsonIntProperty
+    {
+        object NewInt();
+    }
+
+    public class JsonIntProperty : IJsonIntProperty
+    {
+        public object NewInt()
         {
-            searchResult = 0;
-            if (hashTable == null) return false;
-            if (hashTable.Contains(key))
-            {
-                if (AutoCasting)
-                {
-                    searchResult = (Int32)((Double)hashTable[key]);
-                }
-                else
-                {
-                    searchResult = Int32.Parse((string)hashTable[key]);
-                }
-                return true;
-            }
-            return false;
+            return (int)0;
         }
-        public static bool Find(string key, Hashtable hashTable, out Int64 searchResult)
+    }
+
+    public interface IJsonFloatProperty
+    {
+        object NewFloat();
+        object NewFloat(double d);
+        double GetValue(object obj);
+        void SetValue(ref object obj, double d);
+    }
+
+    public class JsonFloatProperty : IJsonFloatProperty
+    {
+        public object NewFloat()
         {
-            searchResult = 0;
-            if (hashTable == null) return false;
-            if (hashTable.Contains(key))
-            {
-                if (AutoCasting)
-                {
-                    searchResult = (Int64)((Double)hashTable[key]);
-                }
-                else
-                {
-                    searchResult = Int64.Parse((string)hashTable[key]);
-                }
-                return true;
-            }
-            return false;
+            return (double)0.0;
         }
-        public static bool Find(string key, Hashtable hashTable, out UInt16 searchResult)
+        public object NewFloat(double d)
         {
-            searchResult = 0;
-            if (hashTable == null) return false;
-            if (hashTable.Contains(key))
-            {
-                if (AutoCasting)
-                {
-                    searchResult = (UInt16)((Double)hashTable[key]);
-                }
-                else
-                {
-                    searchResult = UInt16.Parse((string)hashTable[key]);
-                }
-                return true;
-            }
-            return false;
+            double ret = d;
+            return ret;
         }
-        public static bool Find(string key, Hashtable hashTable, out UInt32 searchResult)
+        public double GetValue(object obj)
         {
-            searchResult = 0;
-            if (hashTable == null) return false;
-            if (hashTable.Contains(key))
-            {
-                if (AutoCasting)
-                {
-                    searchResult = (UInt32)((Double)hashTable[key]);
-                }
-                else
-                {
-                    searchResult = UInt32.Parse((string)hashTable[key]);
-                }
-                return true;
-            }
-            return false;
+            return (double)obj;
         }
-        public static bool Find(string key, Hashtable hashTable, out UInt64 searchResult)
+        public void SetValue(ref object obj, double d)
         {
-            searchResult = 0;
-            if (hashTable == null) return false;
-            if (hashTable.Contains(key))
-            {
-                if (AutoCasting)
-                {
-                    searchResult = (UInt64)((Double)hashTable[key]);
-                }
-                else
-                {
-                    searchResult = UInt64.Parse((string)hashTable[key]);
-                }
-                return true;
-            }
-            return false;
+            obj = d;
+        }
+    }
+
+    public interface IJsonBoolProperty
+    {
+        object NewBool();
+        object NewBool(bool b);
+        bool GetValue(object obj);
+        void SetValue(ref object obj, bool b);
+    }
+
+    public class JsonBoolProperty : IJsonBoolProperty
+    {
+        public object NewBool()
+        {
+            return (bool)false;
+        }
+        public object NewBool(bool b)
+        {
+            bool ret = b;
+            return ret;
+        }
+        public bool GetValue(object obj)
+        {
+            return (bool)obj;
+        }
+        public void SetValue(ref object obj, bool b)
+        {
+            obj = b;
+        }
+    }
+
+    public interface IJsonDatetimeProperty
+    {
+        object NewDatetime();
+    }
+
+    public class JsonDatetimeProperty : IJsonDatetimeProperty
+    {
+        public object NewDatetime()
+        {
+            return new DateTime();
         }
     }
 }
