@@ -20,7 +20,7 @@ namespace seedcoworking.topsoilreader
         public string users_door_password { get; set; }
         public string users_door_root { get; set; }
         public string users_door_get { get; set; }
-        
+
         public Config(string n = "config")
         {
             name = n.Trim();

@@ -130,6 +130,15 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
 
                 new Thread(_SPI_Listen).Start();
                 m_initialized = true;
+                
+                // Makes sure we're not in a command mode or something
+                _SPI_Write("exit\r");
+                //clear out the buffer
+                while ((ReadRegister(WiflyRegister.LSR) & 0x01) != 0) ReadRegister(WiflyRegister.RHR);
+                this._CommandMode_Start();
+                _SPI_Write("reboot\r");
+                Thread.Sleep(1000);
+                _Mode = Modes.Idle;
             }
 
             // Configures and opens the port
@@ -137,9 +146,7 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
             //this._SerialPort.DataReceived += new SerialDataReceivedEventHandler(_SerialPort_DataReceived);
             //this._SerialPort.Open();
            
-            // Makes sure we're not in a command mode or something
-            _SPI_Write("exit\r");
-
+            
             // Starts command mode
             this._CommandMode_Start();
             //enterCommandMode();
@@ -217,6 +224,7 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
             if (!this._CommandMode_Exec("set time address " + IpAddress)) throw new SystemException(this._CommandMode_Response);
             if (!this._CommandMode_Exec("set time port " + Port.ToString())) throw new SystemException(this._CommandMode_Response);
             this._SPI_Write("time\r");
+            Thread.Sleep(1000);
             string RetValue = this._CommandMode_ReadValue("t", "t", "rtc");
             this._CommandMode_Stop();
 

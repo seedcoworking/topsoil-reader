@@ -10,11 +10,13 @@ using SecretLabs.NETMF.Hardware.Netduino;
 using Toolbox.NETMF;
 using Toolbox.NETMF.Hardware.GSXSPI;
 using Toolbox.NETMF.NET;
+using System.Text;
 
 namespace seedcoworking.topsoilreader
 {
     public class Program
     {
+        private static FileStream DebugLogFile;
         //GPIO
         private static OutputPort DoorStrike = new OutputPort(Pins.GPIO_PIN_D8, false);
         //Locks
@@ -38,45 +40,78 @@ namespace seedcoworking.topsoilreader
 
         private static Config Cfg = new Config();
         
+        
         public static void Main()
         {
-            //Because enum.Parse() does not exist in NETMF... yet
-            DaysOfWeek.Add("Sunday", 0);
-            DaysOfWeek.Add("Monday", 1);
-            DaysOfWeek.Add("Tuesday", 2);
-            DaysOfWeek.Add("Wednesday", 3);
-            DaysOfWeek.Add("Thursday", 4);
-            DaysOfWeek.Add("Friday", 5);
-            DaysOfWeek.Add("Saturday", 6);
-            
-            //Eventually this line will return an interface to the WiFly
-            //var ni = NetworkInterface.GetAllNetworkInterfaces();
-            WifiModule = new WiFlyGSX_SPI(WiFlyGSX_SPI.DeviceType.crystal_14_MHz, SPI.SPI_module.SPI1,
-                                            SecretLabs.NETMF.Hardware.Netduino.Pins.GPIO_PIN_D10, "$", true, 500);
-            //need to add this to raspi api
-            string ip = WifiModule.DnsLookup("nist1-pa.ustiming.org");
-            DateTime n = new DateTime(1900, 1, 1).AddSeconds(WifiModule.NtpLookup(ip) - 14400);
-            Utility.SetLocalTime(n.ToLocalTime());
-            Debug.Print(DateTime.Now.ToString());
-            
-            
-            Timer WDataTimer = new Timer(UpdateUsersDelegate, null, 0, 300000);
-            
-            // initialize the Data0 input
-            InterruptPort Data0 = new InterruptPort(Pins.GPIO_PIN_D2, true,
-                                                         Port.ResistorMode.PullUp,
-                                                         Port.InterruptMode.InterruptEdgeHigh);
-            Data0.OnInterrupt += new NativeEventHandler(WData_OnInterrupt);
-            // initialize the Data1 input
-            InterruptPort Data1 = new InterruptPort(Pins.GPIO_PIN_D3, true,
-                                                         Port.ResistorMode.PullUp,
-                                                         Port.InterruptMode.InterruptEdgeHigh);
-            Data1.OnInterrupt += new NativeEventHandler(WData_OnInterrupt);
+            try
+            {
+                if (!Directory.Exists(@"\SD\logs\")) Directory.CreateDirectory(@"\SD\logs\");
+                if (!Directory.Exists(@"\SD\logs\debug\")) Directory.CreateDirectory(@"\SD\logs\debug\");
+                var now = DateTime.Now;
+                string debug_file_name = now.Year.ToString() + '_' + now.Month + '_' + now.Day + '_' + now.Hour + '_' + now.Minute + ".log";
+                DebugLogFile = File.Create(@"\SD\logs\debug\" + debug_file_name);
+                //throw new Exception("Main() Exception ");
+
+                //Because enum.Parse() does not exist in NETMF... yet
+                DaysOfWeek.Add("Sunday", 0);
+                DaysOfWeek.Add("Monday", 1);
+                DaysOfWeek.Add("Tuesday", 2);
+                DaysOfWeek.Add("Wednesday", 3);
+                DaysOfWeek.Add("Thursday", 4);
+                DaysOfWeek.Add("Friday", 5);
+                DaysOfWeek.Add("Saturday", 6);
+
+                //Eventually this line will return an interface to the WiFly
+                //var ni = NetworkInterface.GetAllNetworkInterfaces();
+                WifiModule = new WiFlyGSX_SPI(WiFlyGSX_SPI.DeviceType.crystal_14_MHz, SPI.SPI_module.SPI1,
+                                                SecretLabs.NETMF.Hardware.Netduino.Pins.GPIO_PIN_D10, "$", true, 500);
+                //need to add this to raspi api
+                string ip = WifiModule.DnsLookup("nist1-pa.ustiming.org");
+                DateTime n = new DateTime(1900, 1, 1).AddSeconds(WifiModule.NtpLookup(ip) - 14400);
+                Utility.SetLocalTime(n.ToLocalTime());
+                now = DateTime.Now;
+                WriteDebug(now.ToString());
+                //open nelog file with correct datetime
+                debug_file_name = now.Year.ToString() + '_' + now.Month + '_' + now.Day + '_' + now.Hour + '_' + now.Minute + ".log";
+                var tempfile = DebugLogFile;
+                DebugLogFile = File.Create(@"\SD\logs\debug\" + debug_file_name);
+                tempfile.Seek(0, SeekOrigin.Begin);
+                byte[] b = new byte[tempfile.Length];
+                tempfile.Read(b,0,(int)tempfile.Length);
+                tempfile.Dispose();
+                DebugLogFile.Write(b,0,b.Length);
+               
 
 
-            // wait forever...
-            Thread.Sleep(Timeout.Infinite);
-        }
+
+                Timer WDataTimer = new Timer(UpdateUsersDelegate, null, 0, 12000000);
+
+                // initialize the Data0 input
+                InterruptPort Data0 = new InterruptPort(Pins.GPIO_PIN_D2, true,
+                                                             Port.ResistorMode.PullUp,
+                                                             Port.InterruptMode.InterruptEdgeHigh);
+                Data0.OnInterrupt += new NativeEventHandler(WData_OnInterrupt);
+                // initialize the Data1 input
+                InterruptPort Data1 = new InterruptPort(Pins.GPIO_PIN_D3, true,
+                                                             Port.ResistorMode.PullUp,
+                                                             Port.InterruptMode.InterruptEdgeHigh);
+                Data1.OnInterrupt += new NativeEventHandler(WData_OnInterrupt);
+
+                // wait forever...
+                Thread.Sleep(Timeout.Infinite);
+            }
+            catch(Exception ex)
+            {
+                WriteDebug("Global Exception");
+                WriteDebug("Message:" + ex.Message + "\n"
+                        + "InnerException: " + ex.InnerException + "\n"
+                        + "Stack Trace:\n" + ex.StackTrace);
+                DebugLogFile.Flush();
+                DebugLogFile.Close();
+                DebugLogFile.Dispose();
+                PowerState.RebootDevice(false);
+            }
+    }
 
         
         private static void WData_OnInterrupt(uint port, uint data, DateTime time)
@@ -141,10 +176,10 @@ namespace seedcoworking.topsoilreader
                     rfid += hex[hi].ToString();
                     if (i < maxNib - 1) rfid += hex[lo].ToString();
                 }
-                Debug.Print("Start: " + startBits.Second + ":" + startBits.Millisecond);
-                Debug.Print("Recieved: " + rfid);
-                Debug.Print("Recieved: " + rfidBitIndex + " bits");
-                Debug.Print("Stop: " + stopBits.Second + ":" + stopBits.Millisecond);
+                WriteDebug("Start: " + startBits.Second + ":" + startBits.Millisecond);
+                WriteDebug("Recieved: " + rfid);
+                WriteDebug("Recieved: " + rfidBitIndex + " bits");
+                WriteDebug("Stop: " + stopBits.Second + ":" + stopBits.Millisecond);
                 lock (Cards_Lock)
                 {
                     if (rfid == Cfg.hardcode) UnlockDoor();
@@ -157,14 +192,14 @@ namespace seedcoworking.topsoilreader
                             var d = (Day)c.plan.days[n.DayOfWeek];
                             if (n.TimeOfDay > d.start.TimeOfDay && n.TimeOfDay < d.end.TimeOfDay)
                             {
-                                Debug.Print("OPEN");
+                                WriteDebug("OPEN");
                                 UnlockDoor();
                             }
-                            else Debug.Print("Not Scheduled");
+                            else WriteDebug("Not Scheduled");
                         }
-                        else Debug.Print("Not Scheduled");
+                        else WriteDebug("Not Scheduled");
                     }
-                    else Debug.Print("Not Valid");
+                    else WriteDebug("Not Valid");
                     rfidBitIndex = 0;
                 }
             }
@@ -183,13 +218,13 @@ namespace seedcoworking.topsoilreader
                 SimpleSocket Socket = new WiFlySocket(Cfg.users_host, Cfg.users_host_port, WifiModule);
                 if (!DownloadJson(Socket, src + Cfg.users_door_get, dst + "hashes.json", auth)) return;
                 
-                Debug.Print("Memory: " + Debug.GC(false).ToString());
+                WriteDebug("Memory: " + Debug.GC(false).ToString());
                 Hashtable hashes = null;
                 using (FileStream jfs = new FileStream(dst + "hashes.json", FileMode.Open, FileAccess.Read, FileShare.None, 2048))
                 {
                     hashes = (Hashtable)JSON.JsonDecode(jfs);
                 }
-                Debug.Print("Memory: " + Debug.GC(true).ToString());
+                WriteDebug("Memory: " + Debug.GC(true).ToString());
                 if (hashes == null || hashes.Count == 0) return;
                 Hashtable cards = null;
                 if (hashes.Contains("cards") && (!Hashes.Contains("cards") || ((double)Hashes["cards"]) != (double)hashes["cards"]))
@@ -203,7 +238,7 @@ namespace seedcoworking.topsoilreader
                     {
                         cardarr = (ArrayList)JSON.JsonDecode(jfs);
                     }
-                    Debug.Print("Memory: " + Debug.GC(true).ToString());
+                    WriteDebug("Memory: " + Debug.GC(true).ToString());
                     if (cardarr == null)cardarr = new ArrayList();
                     cards = new Hashtable();
                     if (cardarr.Count > 0)
@@ -247,7 +282,7 @@ namespace seedcoworking.topsoilreader
                         {
                             plantbl = (Hashtable)JSON.JsonDecode(jfs);
                         }
-                        Debug.Print("Memory: " + Debug.GC(true).ToString());
+                        WriteDebug("Memory: " + Debug.GC(true).ToString());
                         if (plantbl == null)
                         {
                             //json decode failed - keep existing if it exists.
@@ -281,7 +316,7 @@ namespace seedcoworking.topsoilreader
                                 if (!dy.Contains("end_time")) continue;
                                 s = (string)dy["end_time"];
                                 day.end = day.ParseDateTime(s, (int)DaysOfWeek[day.name]);
-                                Debug.Print(day.name + " " + day.start.ToString() + " " + day.end.ToString());
+                                WriteDebug(day.name + " " + day.start.ToString() + " " + day.end.ToString());
                                 p.days.Add(day.start.DayOfWeek, day);
                             }
                         }
@@ -332,7 +367,7 @@ namespace seedcoworking.topsoilreader
             Socket.Send("Connection: Close\r\n");
             Socket.Send("\r\n");
 
-            Debug.Print("Memory: " + Debug.GC(false).ToString());
+            WriteDebug("Memory: " + Debug.GC(false).ToString());
 
             //Writes all received data to dst, until the connection is terminated and there's no data left anymore
             using (FileStream outf = new FileStream(dst, FileMode.Create, FileAccess.Write, FileShare.None, 2048))
@@ -370,6 +405,18 @@ namespace seedcoworking.topsoilreader
             Thread.Sleep(5000);
             DoorStrike.Write(false);
         }
+
+        public static void WriteDebug(string s = "")
+        {
+            Debug.Print(s);
+            byte[] b = Encoding.UTF8.GetBytes(DateTime.Now.ToString() + DateTime.Now.Millisecond + " - ");
+            DebugLogFile.Write(b, 0, b.Length);
+            b = Encoding.UTF8.GetBytes(s);
+            DebugLogFile.Write(b, 0, b.Length);
+            DebugLogFile.WriteByte((byte)'\n');
+            DebugLogFile.Flush();
+        }
+
     }
 }
 
