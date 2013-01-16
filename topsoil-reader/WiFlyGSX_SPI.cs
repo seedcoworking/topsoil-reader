@@ -152,7 +152,11 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
             //enterCommandMode();
 
             //set up time sync
+
+            //*** should be 4 & 5, but 5 & 6 actually gets it correct WTF!?
+            //if (!this._CommandMode_Exec("set t z 4")) throw new SystemException(this._CommandMode_Response);
             //if (!this._CommandMode_Exec("set t z 5")) throw new SystemException(this._CommandMode_Response);
+            //if (!this._CommandMode_Exec("set t z 6")) throw new SystemException(this._CommandMode_Response);
             //if (!this._CommandMode_Exec("set time port 123")) throw new SystemException(this._CommandMode_Response);
             //if (!this._CommandMode_Exec("set time enable 1440")) throw new SystemException(this._CommandMode_Response);
             //if (!this._CommandMode_Exec("show time")) throw new SystemException(this._CommandMode_Response);
@@ -231,7 +235,7 @@ namespace Toolbox.NETMF.Hardware.GSXSPI
             // We get the number of seconds since 1 jan. 1970
             double Value1970 = double.Parse(RetValue);
             // But we need the number of seconds since 1 jan. 1900!!
-            return (Value1970 + 2208988800);
+            return (Value1970 + 2208988800 - 3600);
         }
 
         #endregion

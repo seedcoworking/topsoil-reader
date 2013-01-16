@@ -39,7 +39,7 @@ namespace seedcoworking.topsoilreader
         private static Hashtable DaysOfWeek = new Hashtable();
 
         private static Config Cfg = new Config();
-        
+        public int iii;
         
         public static void Main()
         {
@@ -123,7 +123,7 @@ namespace seedcoworking.topsoilreader
                     rfidLastBitCount = rfidBitCount = rfidBitIndex = 1;
                     startBits = DateTime.Now;
                     TimerCallback WDataDelegate = new TimerCallback(WData_Callback);
-                    Timer WDataTimer = new Timer(WDataDelegate, null, 20, 0);
+                    Timer WDataTimer = new Timer(WDataDelegate, null, 50, 0);
                 }
                 else if (rfidBitIndex < rfidBits.Length)
                 {
@@ -141,7 +141,7 @@ namespace seedcoworking.topsoilreader
         {
             lock (WData_Lock)
             {
-                //if (!(first_waiting_for_last = !(rfidBitCount == last_bit_count)))
+                //WriteDebug("Bits: " + rfidBitIndex + "   LastBitCount: " + rfidLastBitCount);
                 if (rfidBitCount <= 1 || rfidBitCount != rfidLastBitCount)
                 {
                     rfidLastBitCount = rfidBitCount;
@@ -149,6 +149,10 @@ namespace seedcoworking.topsoilreader
                     Timer WDataTimer = new Timer(WDataDelegate, null, 20, 0);
                     return;
                 }
+                //for (int i = 0; i < rfidBitIndex; i++)
+                //{
+                    //WriteDebug(rfidBits[i].ToString());
+                //}
                 Int64 rfidNum = 0;
                 byte[] rfidBytes = new byte[(rfidBitIndex - 2 + 7) / 8];
                 for(int i =0; i<rfidBytes.Length;i++){rfidBytes[i]=0;}
@@ -183,7 +187,7 @@ namespace seedcoworking.topsoilreader
                 lock (Cards_Lock)
                 {
                     if (rfid == Cfg.hardcode) UnlockDoor();
-                    else if(Cards != null && Cards.Contains(rfid))
+                    else if (Cards != null && Cards.Contains(rfid))
                     {
                         var n = DateTime.Now;
                         var c = (RFIDCard)Cards[rfid];
@@ -199,7 +203,12 @@ namespace seedcoworking.topsoilreader
                         }
                         else WriteDebug("Not Scheduled");
                     }
-                    else WriteDebug("Not Valid");
+                    else
+                    {
+                        WriteDebug("Not Valid\r\nKeys:{");
+                        foreach (var k in Cards.Keys) WriteDebug(k.ToString());
+                        WriteDebug("}");
+                    }
                     rfidBitIndex = 0;
                 }
             }
@@ -413,7 +422,8 @@ namespace seedcoworking.topsoilreader
             DebugLogFile.Write(b, 0, b.Length);
             b = Encoding.UTF8.GetBytes(s);
             DebugLogFile.Write(b, 0, b.Length);
-            DebugLogFile.WriteByte((byte)'\n');
+            b = Encoding.UTF8.GetBytes("\r\n");
+            DebugLogFile.Write(b, 0, b.Length);
             DebugLogFile.Flush();
         }
 
