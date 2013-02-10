@@ -40,7 +40,7 @@ namespace seedcoworking.topsoilreader
 
         private static Config Cfg = new Config();
         public int iii;
-        
+        private static bool connected = true;
         public static void Main()
         {
             try
@@ -225,7 +225,9 @@ namespace seedcoworking.topsoilreader
                 if (!Directory.Exists(dst)) Directory.CreateDirectory(dst);
 
                 SimpleSocket Socket = new WiFlySocket(Cfg.users_host, Cfg.users_host_port, WifiModule);
-                if (!DownloadJson(Socket, src + Cfg.users_door_get, dst + "hashes.json", auth)) return;
+                
+                if(connected) connected = DownloadJson(Socket, src + Cfg.users_door_get, dst + "hashes.json", auth);
+                if(!File.Exists(dst + "hashes.json"))return;
                 
                 WriteDebug("Memory: " + Debug.GC(false).ToString());
                 Hashtable hashes = null;
@@ -238,7 +240,8 @@ namespace seedcoworking.topsoilreader
                 Hashtable cards = null;
                 if (hashes.Contains("cards") && (!Hashes.Contains("cards") || ((double)Hashes["cards"]) != (double)hashes["cards"]))
                 {
-                    if (DownloadJson(Socket, src + "cards", dst + "cards.json", auth))
+                    if (connected) connected = DownloadJson(Socket, src + "cards", dst + "cards.json", auth);
+                    if (File.Exists(dst + "cards.json"))
                     {
                         Hashes["cards"] = hashes["cards"];
                     }
@@ -278,7 +281,8 @@ namespace seedcoworking.topsoilreader
                             continue;
                         }
                         //download
-                        if (!DownloadJson(Socket, src + h, dst + h + ".json", auth))
+                        if(connected) connected=DownloadJson(Socket, src + h, dst + h + ".json", auth);
+                        if (!File.Exists(dst + h + ".json"))
                         {
                             //download failed - keep existing if it exists.
                             if (Plans.Contains(h)) plans.Add(h, Plans[h]);
@@ -365,7 +369,7 @@ namespace seedcoworking.topsoilreader
             try { Socket.Connect(); }
             catch
             {
-                Timer WDataTimer = new Timer(UpdateUsersDelegate, null, 150, 0);
+                //Timer WDataTimer = new Timer(UpdateUsersDelegate, null, 150, 0);
                 return false;
             }
             // Does a plain HTTP request
