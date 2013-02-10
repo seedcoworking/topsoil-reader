@@ -1,14 +1,25 @@
-# Topsoil Reader - *deaduino* -goto>> [master](https://github.com/seedcoworking/topsoil-reader/edit/master) or [development](https://github.com/seedcoworking/topsoil-reader/edit/development)
+# Topsoil Reader
 
-Topsoil Reader is a Netdunio application written to control RFID access to Seed Coworking.
-See the [master](https://github.com/seedcoworking/topsoil-reader/edit/master) or [development](https://github.com/seedcoworking/topsoil-reader/edit/development) branches for current code and documentation. 
-This branch is called **deaduino** for a reason.
+Topsoil Reader is a Raspberry Pi based system that controls RFID access to Seed Coworking.
 
-This branch of the RFID reader has been discontinued due to hardware implementation issues and is being replaced by a more reliable system. The main problem is that netduino can't use the network and read tags at the same time without having a stroke.
+## Where are the project files?!* 
+Well, they got deleted. We're starting from scratch here.
+If you want to know why, go to the **deaduino** branch. We kept it for historical reasons.
 
-I have plans to make this work eventually by modifying the firmware,writing a proper WiFly driver, and re-porting NETMF. But for now, it is not reliable enough to be used in a real-world situation.
+## So, what now?
 
-Check my [Github Page](https://github.com/testmonkey107) for future updates on NETMF
+### First, we do full TDD - hardware included
+This means we need to emulate the HID6005 Weigand RFID scanner... with a Netduino. This will involve a bit of solder as well as a fair amount of code. 
+
+### Next, hardware design
+This will include a Raspberry Pi, a custom adapter card with ATtiny and 22v10, and a physcal interface for control and debug. 
+
+### Then, lots of code
+Let's see... CUPL, C, C++, Ruby, possibly Python or PHP, and maybe some more C#.
+Not sure about the last three, it depends on what needs done and what fits best.
+
+### Finally, there is no finally
+We'll put it into service when it works reliably, then continue to add new features as people think them up.
 
 ## Hardware
 
