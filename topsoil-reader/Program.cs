@@ -84,7 +84,7 @@ namespace seedcoworking.topsoilreader
 
 
 
-                Timer WDataTimer = new Timer(UpdateUsersDelegate, null, 0, 12000000);
+                Timer WDataTimer = new Timer(UpdateUsersDelegate, null, 0, Timeout.Infinite);
 
                 // initialize the Data0 input
                 InterruptPort Data0 = new InterruptPort(Pins.GPIO_PIN_D2, true,
