@@ -35,7 +35,7 @@ namespace seedcoworking.topsoilreader
             if (f.Exists)
             {
                 Hashtable cfg = null;
-                using (FileStream jfs = new FileStream(f.FullName, FileMode.Open, FileAccess.Read, FileShare.None, 2048))
+                using (FileStream jfs = new FileStream(f.FullName, FileMode.Open, FileAccess.Read, FileShare.None, 1024))
                 {
                     cfg = (Hashtable)JSON.JsonDecode(jfs);
                 }

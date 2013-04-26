@@ -66,8 +66,8 @@ namespace seedcoworking.topsoilreader
                 WifiModule = new WiFlyGSX_SPI(WiFlyGSX_SPI.DeviceType.crystal_14_MHz, SPI.SPI_module.SPI1,
                                                 SecretLabs.NETMF.Hardware.Netduino.Pins.GPIO_PIN_D10, "$", true, 500);
                 //need to add this to raspi api
-                string ip = WifiModule.DnsLookup("nist1-pa.ustiming.org");
-                DateTime n = new DateTime(1900, 1, 1).AddSeconds(WifiModule.NtpLookup(ip) - 14400);
+                string ip = WifiModule.DnsLookup("time.nist.gov");
+                DateTime n = new DateTime(1900, 1, 1).AddSeconds(WifiModule.NtpLookup(ip) - 10800);
                 Utility.SetLocalTime(n.ToLocalTime());
                 now = DateTime.Now;
                 WriteDebug(now.ToString());
@@ -231,7 +231,7 @@ namespace seedcoworking.topsoilreader
                 
                 WriteDebug("Memory: " + Debug.GC(false).ToString());
                 Hashtable hashes = null;
-                using (FileStream jfs = new FileStream(dst + "hashes.json", FileMode.Open, FileAccess.Read, FileShare.None, 2048))
+                using (FileStream jfs = new FileStream(dst + "hashes.json", FileMode.Open, FileAccess.Read, FileShare.None, 1024))
                 {
                     hashes = (Hashtable)JSON.JsonDecode(jfs);
                 }
@@ -246,7 +246,7 @@ namespace seedcoworking.topsoilreader
                         Hashes["cards"] = hashes["cards"];
                     }
                     ArrayList cardarr = null;
-                    using (FileStream jfs = new FileStream(dst + "cards.json", FileMode.Open, FileAccess.Read, FileShare.None, 2048))
+                    using (FileStream jfs = new FileStream(dst + "cards.json", FileMode.Open, FileAccess.Read, FileShare.None, 1024))
                     {
                         cardarr = (ArrayList)JSON.JsonDecode(jfs);
                     }
@@ -291,7 +291,7 @@ namespace seedcoworking.topsoilreader
                         }
                         //decode
                         Hashtable plantbl = null;
-                        using (FileStream jfs = new FileStream(dst + h + ".json", FileMode.Open, FileAccess.Read, FileShare.None, 2048))
+                        using (FileStream jfs = new FileStream(dst + h + ".json", FileMode.Open, FileAccess.Read, FileShare.None, 1024))
                         {
                             plantbl = (Hashtable)JSON.JsonDecode(jfs);
                         }
@@ -383,7 +383,7 @@ namespace seedcoworking.topsoilreader
             WriteDebug("Memory: " + Debug.GC(false).ToString());
 
             //Writes all received data to dst, until the connection is terminated and there's no data left anymore
-            using (FileStream outf = new FileStream(dst, FileMode.Create, FileAccess.Write, FileShare.None, 2048))
+            using (FileStream outf = new FileStream(dst, FileMode.Create, FileAccess.Write, FileShare.None, 1024))
             {
                 int j = -1;
                 while (Socket.IsConnected || Socket.BytesAvailable > 0)
