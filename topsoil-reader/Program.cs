@@ -259,7 +259,7 @@ namespace seedcoworking.topsoilreader
                         for (int i = 0; i < cardarr.Count; i++)
                         {
                             var c = new RFIDCard();
-                            c.number = ((Hashtable)cardarr[i])["identifier"].ToString();
+                            c.number = ((Hashtable)cardarr[i])["identifier"].ToString().ToUpper();
                             c.plan_id = (int)System.Math.Round((double)((Hashtable)cardarr[i])["plan_id"]);
                             cards[c.number] = c;
                         }
