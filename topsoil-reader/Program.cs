@@ -67,11 +67,13 @@ namespace seedcoworking.topsoilreader
                                                 SecretLabs.NETMF.Hardware.Netduino.Pins.GPIO_PIN_D10, "$", true, 500);
                 //need to add this to raspi api
                 string ip = WifiModule.DnsLookup("time.nist.gov");
-                DateTime n = new DateTime(1900, 1, 1).AddSeconds(WifiModule.NtpLookup(ip) - 10800);
+                int dst = 0;//seconds to add for daylight savings time
+                dst = 3600;//comment this out during winter
+                DateTime n = new DateTime(1900, 1, 1).AddSeconds(WifiModule.NtpLookup(ip) - 14400 + dst);
                 Utility.SetLocalTime(n.ToLocalTime());
                 now = DateTime.Now;
                 WriteDebug(now.ToString());
-                //open nelog file with correct datetime
+                //open new log file with correct datetime
                 debug_file_name = now.Year.ToString() + '_' + now.Month + '_' + now.Day + '_' + now.Hour + '_' + now.Minute + ".log";
                 var tempfile = DebugLogFile;
                 DebugLogFile = File.Create(@"\SD\logs\debug\" + debug_file_name);
